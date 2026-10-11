@@ -28,6 +28,18 @@ Deploys cleanly on Vercel (zero config), Netlify, Cloudflare Pages, or any Node 
 - **JetBrains Mono** via `next/font/google`
 - Zero CSS framework — design tokens + scoped styles live in `app/globals.css`
 
+## / — Two Trails
+
+The home route (`/`) is an interactive 3D story of the road from Sarlahi to the Himalaya (Engineer ⇄ Explorer, Recruiter View, Nepal map, scene soundscape, time-of-day lighting). It lives in `components/journey/`:
+
+- `engine.ts` — the three.js world, overlay canvas, audio and scroll state (framework-free class, loaded client-side only)
+- `Journey.tsx` — React chrome rendered from `engine.renderVals()`, scaled to the viewport
+- `JourneyLoader.tsx` — `dynamic({ ssr: false })` wrapper
+- `journey.css` — scoped styles
+- assets: `public/snd/*.mp3` (ambiences), `public/fonts/Sawton*.woff2`
+
+Run `npm run dev` and open http://localhost:3000 (classic V3 portfolio at `/classic`; `/journey` redirects home). Press M for the full map, Esc to close, arrows to step.
+
 ## Project layout
 
 ```

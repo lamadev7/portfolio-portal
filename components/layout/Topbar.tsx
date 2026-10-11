@@ -8,6 +8,7 @@ const NAV_LINKS = [
   { href: "#agents",     label: "agents"     },
   { href: "#stack",      label: "stack"      },
   { href: "#contact",    label: "contact"    },
+  { href: "/",           label: "journey ↗"  },
 ];
 
 export default function Topbar() {
