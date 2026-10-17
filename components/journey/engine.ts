@@ -6,9 +6,18 @@
  * The React component (Journey.tsx) renders the chrome from renderVals() and hands DOM refs back via callback refs.
  * Ported from the Design artboard (Trails.dc.html); kept in plain JS style on purpose so the two stay diffable.
  */
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { BokehShader } from 'three/examples/jsm/shaders/BokehShader.js';
+import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+export const SCHOOL_SIGN = 'SCHOOL · SARLAHI';
 export class JourneyEngine {
   props: any; state: any; onChange: () => void; _r: any;
-  constructor(props, onChange) { this.props = props || {}; this.state = {}; this.onChange = onChange || function () {}; }
+  constructor(props, onChange) { this.props = props || {}; this.state = {}; this.onChange = onChange || function () {}; this.sto = { k: -1, i: 0, t: 0, n: -1, done: false, wait: 0, tk: -1, tt: 0 }; this.sayA = 0; this.pose = 0; this.auto = false; this.hold = false; this.tour = null; }
   setState(o) { Object.assign(this.state, o); this.onChange(); }
 
   mount() {
@@ -17,17 +26,29 @@ export class JourneyEngine {
     if (!s.VW) { s.VW = 1440; s.VH = 900; }
     s.cam = 0; s.tc = 0; s.v = 0; s.mx = 0; s.my = 0; s.tmx = 0; s.tmy = 0;
     s.mode = this.isExp() ? 1 : 0;
-    s.t0 = performance.now(); s.f = 0; s.cards = [];
+    s.t0 = performance.now(); s.f = 0;
+    s.rm = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     s.setup();
     var hm = /step=(\d+)/.exec(location.hash || ''), hl = /light=(day|night)/.exec(location.hash || ''); if (hm) { s.cam = s.tc = s.pinX(Math.min(s.NM - 1, +hm[1])) - s.TX; } var hx0 = /x=(\d+)/.exec(location.hash || ''); if (hx0) { s.cam = s.tc = +hx0[1] - s.TX; } if (hl) s.state.light = hl[1];
-    try { s.audioOn(); } catch (e) { }
+    s.sndPref = true; s.state.snd = true; s.kick = function () { if (!s.sndPref) return; var A = s.audioInit(); if (A && A.ctx.state === 'suspended') A.ctx.resume(); }; ['pointerdown', 'keydown', 'touchstart'].forEach(function (ev) { window.addEventListener(ev, s.kick, { passive: true }); });
+    if (/dbg/.test(location.hash)) window.__je = s; /*DBG*/
     var loop = function () { s.raf = requestAnimationFrame(loop); try { s.tick(); } catch (err) { s.errs = (s.errs || 0) + 1; if (s.errs < 3 && window.console) console.warn('trails', err); } };
     s.raf = requestAnimationFrame(loop);
   }
-  unmount() { cancelAnimationFrame(this.raf); clearTimeout(this.snapT); }
+  unmount() { var s = this; cancelAnimationFrame(s.raf); clearTimeout(s.snapT); ['pointerdown', 'keydown', 'touchstart'].forEach(function (ev) { window.removeEventListener(ev, s.kick); }); if (s.au) { s.au.ctx.close(); s.au = null; } }
   /* logical stage size follows the viewport aspect (≥1440×900); wide screens widen the view, tall ones keep the horizontal field */
-  fovFor(a) { return a >= 1.6 ? 50 : 2 * Math.atan(Math.tan(25 * Math.PI / 180) * 1.6 / a) * 180 / Math.PI; }
-  resize(w, h) { var s = this; s.VW = w; s.VH = h; s.dpr = 0; if (s.R && s.cam3) { s.R.setSize(w, h, false); s.cam3.aspect = w / h; s.cam3.fov = s.fovFor(w / h); s.cam3.updateProjectionMatrix(); } }
+  fovFor(a) { return a >= 1.6 ? 50 : Math.min(72, 2 * Math.atan(Math.tan(25 * Math.PI / 180) * 1.6 / a) * 180 / Math.PI); }
+  resize(w, h, k) { var s = this; s.VW = w; s.VH = h; s.K = k || 1; s.dpr = 0; if (s.R && s.cam3) { s.R.setSize(w, h, false); s.cam3.aspect = w / h; s.cam3.fov = s.fovFor(w / h); s.cam3.updateProjectionMatrix(); s.ppSize(); } }
+  /* post-processing on capable screens: bloom that wakes up after dark, and a shallow depth of field while he speaks; dropped if it costs frames */
+  setupPP(T3) {
+    var s = this, R = s.R; s.pp = null;
+    if (!R.capabilities.isWebGL2 || (window.matchMedia && window.matchMedia('(max-width: 759.98px)').matches) || /[#&?]pp=0/.test(location.href)) return;
+    var comp = new EffectComposer(R, new T3.WebGLRenderTarget(1, 1, { type: T3.HalfFloatType, depthTexture: new T3.DepthTexture(1, 1) }));
+    comp.renderTarget2.depthTexture = new T3.DepthTexture(1, 1); comp.addPass(new RenderPass(s.scene, s.cam3)); var bloom = new UnrealBloomPass(new T3.Vector2(s.VW, s.VH), 0.2, 0.55, 0.85); comp.addPass(bloom);
+    var dof = new ShaderPass(BokehShader, 'tColor'); dof.material.defines.DEPTH_PACKING = 0; dof.uniforms.nearClip.value = s.cam3.near; dof.uniforms.farClip.value = s.cam3.far; dof.uniforms.maxblur.value = 0.0055; dof.enabled = false; comp.addPass(dof); comp.addPass(new OutputPass()); var fxaa = new ShaderPass(FXAAShader); comp.addPass(fxaa);
+    s.pp = { comp: comp, bloom: bloom, dof: dof, fxaa: fxaa, n: -90, acc: 0 }; s.ppSize();
+  }
+  ppSize() { var s = this; if (!s.pp) return; s.pp.comp.setPixelRatio(s.R.getPixelRatio()); s.pp.comp.setSize(s.VW, s.VH); s.pp.dof.uniforms.aspect.value = s.VW / s.VH; var pr = s.R.getPixelRatio(); s.pp.fxaa.uniforms.resolution.value.set(1 / (s.VW * pr), 1 / (s.VH * pr)); }
   isExp() { var st = this.state || {}; if (st.exp != null) return st.exp; return this.props.startMode === 'explorer'; }
   maxCam() { return this.pinX(this.NM - 1) - this.TX; }
   pinX(k) { return this.X0 + k * this.STEP + (k >= 1 ? this.EXTRA : 0); }
@@ -115,7 +136,9 @@ export class JourneyEngine {
   setup3d() {
     var s = this, T3 = window.THREE; if (!T3 || !s.gl) return;
     if (T3.ColorManagement) T3.ColorManagement.enabled = true;
-    s.SC = 0.08; s.SW = s.WORLD * s.SC; s.RIV = [248, 392]; s.CANX = s.rivX(0, -46) + 4; s.MINI = []; for (var mn = 0; mn < 44; mn++) { var mxx = 1.745 + 6.98 * mn; if (s.h2(mn, 77) > 0.62 && Math.abs(mxx - 248) > 14 && s.forest(mxx) < 0.2) s.MINI.push(mxx); } s.SWY = [s.pinX(2) * s.SC + 26, -74]; s.BC = [s.pinX(10) * s.SC + 40 + 0.185 * 2600 - 285, -350]; s.FLATS = [{ x: s.pinX(5) * s.SC + 24, z: -46, rx: 40, rz: 28 }, { x: s.pinX(6) * s.SC + 40, z: -112, rx: 60, rz: 46 }, { x: s.BC[0], z: s.BC[1], rx: 120, rz: 62 }];
+    s.SC = 0.08; s.SW = s.WORLD * s.SC; s.RIV = [248, 392]; s.CANX = s.rivX(0, -46) + 4;
+    s.PADS = [{ x: s.pinX(0) * s.SC + 12, z: -14.5, rx: 16, rz: 9.6 }]; s.padHit = function (x, z) { for (var pi = 0; pi < s.PADS.length; pi++) { var Q = s.PADS[pi]; if (Math.abs(x - Q.x) < Q.rx && Math.abs(z - Q.z) < Q.rz) return true; } return false; };
+    s.MINI = []; for (var mn = 0; mn < 44; mn++) { var mxx = 1.745 + 6.98 * mn; if (s.h2(mn, 77) > 0.62 && Math.abs(mxx - 248) > 14 && s.forest(mxx) < 0.2 && !s.padHit(mxx, -14.5)) s.MINI.push(mxx); } s.SWY = [s.pinX(2) * s.SC + 26, -74]; s.BC = [s.pinX(10) * s.SC + 40 + 0.185 * 2600 - 285, -350]; s.FLATS = [{ x: s.pinX(5) * s.SC + 24, z: -46, rx: 40, rz: 28 }, { x: s.pinX(6) * s.SC + 40, z: -112, rx: 60, rz: 46 }, { x: s.BC[0], z: s.BC[1], rx: 120, rz: 62 }];
     var h = function (x) { var n = parseInt(x.slice(1), 16); return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; };
     s.C = { paddy: h('#8FC43F'), paddyD: h('#78AE37'), bund: h('#9AAA55'), chure: h('#5B7A7E'), forest: h('#2E4A28'), hill: h('#4A7A3C'), terrace: h('#8AA646'), floor: h('#A49C8A'), sand: h('#C9B48E'), rice: h('#9FD24C'), field: h('#6C8B46'), rim: h('#3B5E38'), rock: h('#6B727C'), scree: h('#8A8F96'), forestM: h('#294420'), snow: h('#F3F6FA') };
     var R = new T3.WebGLRenderer({ canvas: s.gl, antialias: true, powerPreference: 'high-performance' });
@@ -123,25 +146,26 @@ export class JourneyEngine {
     R.shadowMap.enabled = true; R.shadowMap.type = T3.PCFSoftShadowMap; R.outputColorSpace = T3.SRGBColorSpace; R.toneMapping = T3.ACESFilmicToneMapping; R.toneMappingExposure = 0.9;
     s.R = R; s.scene = new T3.Scene();
     s.cam3 = new T3.PerspectiveCamera(s.fovFor(s.VW / s.VH), s.VW / s.VH, 0.5, 6000);
+    s.setupPP(T3);
     s.sun = new T3.DirectionalLight(0xfff2dc, 1.25); s.sun.castShadow = true;
     var sc = s.sun.shadow; sc.mapSize.set(4096, 4096); sc.camera.left = -190; sc.camera.right = 190; sc.camera.top = 190; sc.camera.bottom = -190; sc.camera.near = 10; sc.camera.far = 560; sc.bias = -0.0004; sc.normalBias = 1.6; sc.radius = 2;
     s.scene.add(s.sun); s.scene.add(s.sun.target);
-    s.hemi = new T3.HemisphereLight(0xbfd8ff, 0x5a6a46, 0.62); s.scene.add(s.hemi);
+    s.hemi = new T3.HemisphereLight(0xbfd8ff, 0x5a6a46, 0.62); s.scene.add(s.hemi); s.fill = new T3.DirectionalLight(0xfff1e2, 0); s.scene.add(s.fill); s.scene.add(s.fill.target);
     s.scene.fog = new T3.Fog(0xcfe3f3, 130, 800);
     /* sky dome */
-    s.skyMat = new T3.ShaderMaterial({ side: T3.BackSide, depthWrite: false, uniforms: { hzPow: { value: 0.65 }, hzBand: { value: 0.0 }, top: { value: new T3.Color(0x4f8fd6) }, hz: { value: new T3.Color(0xd4e6f4) }, sunDir: { value: new T3.Vector3(0.4, 0.3, -0.85) }, sunCol: { value: new T3.Color(0xfff0c8) } },
+    s.skyMat = new T3.ShaderMaterial({ side: T3.BackSide, depthWrite: false, uniforms: { invTM: { value: 0 }, expo: { value: 0.84 }, hzPow: { value: 0.65 }, hzBand: { value: 0.0 }, top: { value: new T3.Color(0x4f8fd6) }, hz: { value: new T3.Color(0xd4e6f4) }, sunDir: { value: new T3.Vector3(0.4, 0.3, -0.85) }, sunCol: { value: new T3.Color(0xfff0c8) } },
       vertexShader: 'varying vec3 vP0; void main(){ vP0 = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-      fragmentShader: 'uniform vec3 top, hz, sunDir, sunCol; uniform float hzPow, hzBand; varying vec3 vP0; void main(){ vec3 vP = normalize(vP0); float t = clamp((vP.y - hzBand) * 1.6 + 0.08, 0.0, 1.0); t = pow(t, hzPow); vec3 c = mix(hz, top, t); float sd = max(dot(vP, normalize(sunDir)), 0.0); c += sunCol * (pow(sd, 900.0) * 0.9 + pow(sd, 60.0) * 0.22 + pow(sd, 6.0) * 0.08); gl_FragColor = vec4(c, 1.0); }' });
+      fragmentShader: 'uniform vec3 top, hz, sunDir, sunCol; uniform float hzPow, hzBand, invTM, expo; varying vec3 vP0; vec3 untone(vec3 c){ vec3 y = clamp(pow(c, vec3(2.2)), 0.0, 0.98); vec3 A = 0.983729 * y - 1.0, B = 0.432951 * y - 0.0245786, C = 0.238081 * y + 0.000090537; return (-B - sqrt(max(B * B - 4.0 * A * C, 0.0))) / (2.0 * A) * 0.6 / expo; } void main(){ vec3 vP = normalize(vP0); float t = clamp((vP.y - hzBand) * 1.6 + 0.08, 0.0, 1.0); t = pow(t, hzPow); vec3 c = mix(hz, top, t); float sd = max(dot(vP, normalize(sunDir)), 0.0); c += sunCol * (pow(sd, 900.0) * 0.9 + pow(sd, 60.0) * 0.22 + pow(sd, 6.0) * 0.08); gl_FragColor = vec4(invTM > 0.5 ? untone(c) : c, 1.0); }' });
     s.sunSpr = new T3.Sprite(new T3.SpriteMaterial({ map: s.glowTex(T3), transparent: true, depthWrite: false, depthTest: true, blending: T3.AdditiveBlending, opacity: 0.6, color: 0xfff1cf, fog: false })); s.sunSpr.scale.set(68, 68, 1);
     s.moon = new T3.Sprite(new T3.SpriteMaterial({ map: s.moonTex(T3), transparent: true, depthWrite: false, depthTest: true, opacity: 0, fog: false })); s.moon.scale.set(150, 150, 1); s.scene.add(s.moon);
     s.moonHalo = new T3.Sprite(new T3.SpriteMaterial({ map: s.glowTex(T3), transparent: true, depthWrite: false, depthTest: true, blending: T3.AdditiveBlending, opacity: 0, color: 0xcfe0ff, fog: false })); s.moonHalo.scale.set(520, 520, 1); s.scene.add(s.moonHalo);
     var sp = new Float32Array(900 * 3); for (var si = 0; si < 900; si++) { var th = s.h2(si, 601) * 6.283, ph = Math.acos(1 - s.h2(si, 602)) * 0.62; sp[si * 3] = Math.sin(ph) * Math.cos(th) * 4800; sp[si * 3 + 1] = Math.cos(ph) * 4800; sp[si * 3 + 2] = Math.sin(ph) * Math.sin(th) * 4800; } var sg = new T3.BufferGeometry(); sg.setAttribute('position', new T3.BufferAttribute(sp, 3)); s.stars = new T3.Points(sg, new T3.PointsMaterial({ color: 0xffffff, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false, fog: false })); s.scene.add(s.stars); s.sunSpr.renderOrder = 2; s.scene.add(s.sunSpr);
     s.sunHalo = new T3.Sprite(new T3.SpriteMaterial({ map: s.glowTex(T3), transparent: true, depthWrite: false, depthTest: false, blending: T3.AdditiveBlending, opacity: 0.1, color: 0xffd9a0, depthTest: true })); s.sunHalo.scale.set(420, 620, 1); s.sunHalo.renderOrder = 1; s.scene.add(s.sunHalo);
     s.sky = new T3.Mesh(new T3.SphereGeometry(5200, 96, 64), s.skyMat); s.scene.add(s.sky);
-    var LM = [[s.SWY[0], s.SWY[1], 52], [s.pinX(3) * s.SC + 30, -46, 22], [s.pinX(5) * s.SC + 24, -46, 46], [s.pinX(6) * s.SC + 40, -112, 72], [s.pinX(7) * s.SC + 30, -118, 50]];
+    var LM = [[s.SWY[0], s.SWY[1], 52], [s.pinX(3) * s.SC + 30, -46, 22], [s.pinX(5) * s.SC + 24, -46, 46], [s.pinX(6) * s.SC + 40, -112, 72], [s.pinX(7) * s.SC + 30, -118, 50], [s.pinX(4) * s.SC + 8, -14, 27], [s.pinX(1) * s.SC + 14, -13, 19], [s.pinX(2) * s.SC + 4, -14, 15], [s.pinX(3) * s.SC + 1.5, -7.6, 7], [s.pinX(8) * s.SC + 5, -9.6, 11], [s.pinX(9) * s.SC + 5, -5, 10]];
     s.clearLM = function (x, z) { for (var q = 0; q < LM.length; q++) { var L0 = LM[q]; if (z > L0[1] - 6 && Math.abs(x - L0[0]) < L0[2] + Math.max(0, (z - L0[1])) * 0.45) return true; if (Math.hypot(x - L0[0], z - L0[1]) < L0[2] * 0.9) return true; } return false; };
-    s.buildTerrain(T3); s.buildWater(T3); s.buildTrees(T3); s.buildHouses(T3); s.buildLandmarks(T3); s.buildLumbini(T3); s.buildRaniPokhari(T3); s.buildStadium(T3); s.buildClouds(T3); s.buildSnow(T3); s.buildTrek(T3); s.buildTerai(T3); s.buildBridge(T3); s.buildFauna(T3); s.buildTrail(T3);
-    s.tmpV = new T3.Vector3(); s.pinScr = []; s.ready3d = true;
+    s.buildTerrain(T3); s.buildWater(T3); s.buildTrees(T3); s.buildHouses(T3); s.buildLandmarks(T3); s.buildLumbini(T3); s.buildRaniPokhari(T3); s.buildStadium(T3); s.buildClouds(T3); s.buildSnow(T3); s.buildTrek(T3); s.buildTerai(T3); s.buildBridge(T3); s.buildFauna(T3); s.buildTrail(T3); s.buildStory(T3);
+    s.tmpV = new T3.Vector3(); s.tmpD = new T3.Vector3(); s.tmpE = new T3.Vector3(); s.tmpC = new T3.Color(); s.pinScr = []; s.ready3d = true;
   }
   buildTerrain(T3) {
     var s = this, geo = new T3.PlaneGeometry(2000, 560, 500, 140); geo.rotateX(-Math.PI / 2);
@@ -294,7 +318,7 @@ export class JourneyEngine {
     var huts = s.place(220, function (Z, x, z, r) { if (Z.T < 0.6 || s.forest(x) > 0.2 || s.lum(x) > 0.3 || (x < 125 && -z < 75) || -z < 12) return 0; var vil = s.ss(125, 140, x) * (1 - s.ss(205, 220, x)); return -z < 190 && r < (vil > 0.5 ? 0.5 : 0.22) ? 1 : 0; });
     s.inst(T3, hut1, huts.filter(function (p, i) { return i % 3 !== 0; }), function (p, i, d, c) { d.position.set(p[0], p[1] - 0.05, p[2]); var sc = 1.5 + s.h2(i, 4) * 0.5; d.scale.set(sc, sc, sc); d.rotation.y = (s.h2(i, 13) - 0.5) * 0.9; c.setHSL(0.09, 0.1, 0.5 + s.h2(i, 5) * 0.12); }, hutM);
     s.inst(T3, hut2, huts.filter(function (p, i) { return i % 3 === 0; }), function (p, i, d, c) { d.position.set(p[0], p[1] - 0.05, p[2]); d.scale.set(1.6, 1.6, 1.6); d.rotation.y = (s.h2(i, 13) - 0.5) * 0.9; c.setHSL(0.08, 0.1, 0.5 + s.h2(i, 5) * 0.1); }, hutM);
-    var hays = s.place(220, function (Z, x, z, r) { return Z.T > 0.7 && s.forest(x) < 0.2 && s.lum(x) < 0.3 && -z < 200 && r < 0.3 ? 1 : 0; });
+    var hays = s.place(220, function (Z, x, z, r) { return Z.T > 0.7 && s.forest(x) < 0.2 && s.lum(x) < 0.3 && -z < 200 && r < 0.3 && !s.padHit(x, z) ? 1 : 0; });
     s.inst(T3, hay, hays, function (p, i, d, c) { var sc = 1.1 + s.h2(i, 4) * 0.7; d.position.set(p[0], p[1] - 0.05, p[2]); d.scale.set(sc, sc, sc); c.setHSL(0.12, 0.1, 0.5 + s.h2(i, 5) * 0.12); });
     /* hills and the valley: real walls, windows, pitched tin or flat parapet roofs; the Himalaya: bright gable-roofed lodges under snow */
     var hill = s.place(140, function (Z, x, z, r) { return Z.H > 0.5 && -z < 210 && r < 0.25 && !s.clearLM(x, z) ? 1 : 0; });
@@ -339,10 +363,10 @@ export class JourneyEngine {
     var bl = []; for (var bi = 0; bi < 11; bi++) { var ba = bi * 0.6 + 0.3, br = 0.05 + s.h2(bi, 301) * 0.22; bl.push({ geo: blade(0.25 + s.h2(bi, 306) * 0.45), c: L(['#7fb544', '#86bb48', '#78ad3f'][bi % 3]), c2: L(['#c8ea74', '#bfe468', '#d0ee7e'][bi % 3]), topY: 0.5, x: Math.cos(ba) * br, y: 0, z: Math.sin(ba) * br, sx: 1, sy: 0.9 + s.h2(bi, 302) * 0.5, ry: s.h2(bi, 303) * 6.28, rx: (s.h2(bi, 304) - 0.5) * 0.3, rz: (s.h2(bi, 305) - 0.5) * 0.3 }); }
     var cross = s.merge(T3, bl);
     var tufts = [];
-    for (var z = -5; z > -150 && tufts.length < 36000; z -= 1.0 * (1 + (-z) / 50)) { var dz = 1.0 * (1 + (-z) / 50); for (var x = -70; x < s.SW; x += dz * 0.9) { if (T(Math.max(0, x)) < 0.5 || s.forest(x) > 0.2 || s.lum(x) > 0.3) continue; var plot = s.h2(Math.floor(x / 7), Math.floor(z / 11.4)); var bx = Math.pow(0.5 + 0.5 * Math.sin(x * 0.9), 14), bz = Math.pow(0.5 + 0.5 * Math.sin(z * 0.55), 14); if (bx + bz > 0.5) continue; var nr = 0; for (var k = 0; k < 2; k++) if (Math.abs(x - s.rivX(k, z)) < 10) nr = 1; if (nr) continue; var past = s.pasture(x, -z); if (past > 0.5) continue; if (Math.abs(-z - 46) < 3.5 && x > s.CANX - 2 && x < s.CANX + 50) continue; var sl = Math.abs(s.H(x + 1.5, z) - s.H(x, z)); if (sl > 0.9) continue; var mc = 0; for (var mi = 0; mi < s.MINI.length; mi++) if (Math.abs(x - s.MINI[mi]) < 1.2) mc = 1; if (mc) continue; tufts.push([x, s.H(x, z), z, plot, dz]); } }
+    for (var z = -5; z > -150 && tufts.length < 36000; z -= 1.0 * (1 + (-z) / 50)) { var dz = 1.0 * (1 + (-z) / 50); for (var x = -70; x < s.SW; x += dz * 0.9) { if (T(Math.max(0, x)) < 0.5 || s.forest(x) > 0.2 || s.lum(x) > 0.3 || s.padHit(x, z)) continue; var plot = s.h2(Math.floor(x / 7), Math.floor(z / 11.4)); var bx = Math.pow(0.5 + 0.5 * Math.sin(x * 0.9), 14), bz = Math.pow(0.5 + 0.5 * Math.sin(z * 0.55), 14); if (bx + bz > 0.5) continue; var nr = 0; for (var k = 0; k < 2; k++) if (Math.abs(x - s.rivX(k, z)) < 10) nr = 1; if (nr) continue; var past = s.pasture(x, -z); if (past > 0.5) continue; if (Math.abs(-z - 46) < 3.5 && x > s.CANX - 2 && x < s.CANX + 50) continue; var sl = Math.abs(s.H(x + 1.5, z) - s.H(x, z)); if (sl > 0.9) continue; var mc = 0; for (var mi = 0; mi < s.MINI.length; mi++) if (Math.abs(x - s.MINI[mi]) < 1.2) mc = 1; if (mc) continue; tufts.push([x, s.H(x, z), z, plot, dz]); } }
     for (var zf = 5.5; zf < 44; zf += 1.0) { for (var xf = -90; xf < s.SW; xf += 0.95) { if (T(Math.max(0, xf)) < 0.5 || s.forest(xf) > 0.2) continue; var pl2 = s.h2(Math.floor(xf / 7), Math.floor(zf / 11.4)); var bx2 = Math.pow(0.5 + 0.5 * Math.sin(xf * 0.9), 14), bz2 = Math.pow(0.5 + 0.5 * Math.sin(zf * 0.55), 14); if (bx2 + bz2 > 0.5) continue; if (Math.abs(xf - s.rivX(0, zf)) < 11) continue; tufts.push([xf, s.H(xf, zf), zf, pl2, 1.0]); }
     }
-    s.inst(T3, cross, tufts, function (p, i, d, c) { var sc = (0.72 + p[3] * 0.18) * p[4] / 1.0; d.position.set(p[0], p[1] - 0.05, p[2]); d.scale.set(sc * 1.25, sc, sc * 1.25); d.rotation.y = s.h2(i, 5) * 6.28; if (p[3] > 0.86) c.setHSL(0.2, 0.2, 0.62 + s.h2(i, 6) * 0.1); else if (p[3] < 0.1) c.setHSL(0.27, 0.15, 0.7 + s.h2(i, 6) * 0.1); else c.setHSL(0.22 + p[3] * 0.05, 0.1, 0.72 + s.h2(i, 6) * 0.14); }, new T3.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: T3.DoubleSide }));
+    s.tuftIM = s.inst(T3, cross, tufts, function (p, i, d, c) { var sc = (0.72 + p[3] * 0.18) * p[4] / 1.0; d.position.set(p[0], p[1] - 0.05, p[2]); d.scale.set(sc * 1.25, sc, sc * 1.25); d.rotation.y = s.h2(i, 5) * 6.28; if (p[3] > 0.86) c.setHSL(0.2, 0.2, 0.62 + s.h2(i, 6) * 0.1); else if (p[3] < 0.1) c.setHSL(0.27, 0.15, 0.7 + s.h2(i, 6) * 0.1); else c.setHSL(0.22 + p[3] * 0.05, 0.1, 0.72 + s.h2(i, 6) * 0.14); }, new T3.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: T3.DoubleSide })); s.tuftIM.castShadow = false;
     s.buildPaddy(T3); s.buildCanal(T3);
     /* areca and coconut palms */
     var frond = function (n, len, w, col, droop) { var p = []; for (var k = 0; k < n; k++) { var a = k * (6.283 / n) + 0.3; p.push({ geo: plane, c: L(col), x: Math.cos(a) * len * 0.45, y: -len * 0.18 * droop, z: Math.sin(a) * len * 0.45, sx: w, sy: len, ry: -a + Math.PI / 2, rx: 1.25 + droop * 0.35 }); } return p; };
@@ -450,7 +474,7 @@ export class JourneyEngine {
     var skin = L('#b57a4e'), farmer = s.merge(T3, [{ geo: cyl, c: L('#e9e4d6'), x: 0.12, y: 0.4, sx: 0.14, sy: 0.8, sz: 0.14 }, { geo: cyl, c: L('#e9e4d6'), x: -0.12, y: 0.4, sx: 0.14, sy: 0.8, sz: 0.14 }, { geo: cyl, c: L('#ffffff'), y: 1.1, z: 0.12, sx: 0.34, sy: 0.75, sz: 0.26, rx: 0.9 }, { geo: sph, c: skin, y: 1.3, z: 0.55, sx: 0.2, sy: 0.22, sz: 0.2 }, { geo: cone, c: L('#c9323a'), y: 1.5, z: 0.52, sx: 0.22, sy: 0.18, sz: 0.22 }, { geo: cyl, c: skin, x: 0.3, y: 0.85, z: 0.5, sx: 0.08, sy: 0.6, sz: 0.08, rx: 0.5 }, { geo: cyl, c: skin, x: -0.3, y: 0.85, z: 0.5, sx: 0.08, sy: 0.6, sz: 0.08, rx: 0.5 }, { geo: tor, c: L('#777'), x: 0.3, y: 0.55, z: 0.7, sx: 0.18, sy: 0.18, sz: 0.18, ry: 1.2 }]);
     var sheaf = s.merge(T3, [{ geo: cone, c: L('#c9b24a'), y: 0.45, sx: 0.5, sy: 0.9, sz: 0.5 }, { geo: cone, c: L('#d8c458'), x: 0.5, y: 0.4, sx: 0.4, sy: 0.8, sz: 0.4, rz: -0.4 }, { geo: cone, c: L('#bfa843'), x: -0.45, y: 0.4, sx: 0.4, sy: 0.8, sz: 0.4, rz: 0.4 }]);
     var farmers = [], sheaves = [];
-    for (var f = 0; f < 22; f++) { var fx = 4 + s.h2(f, 101) * 120, fz = -12 - s.h2(f, 102) * 58; var plot = s.h2(Math.floor(fx / 7), Math.floor(fz / 11.4)); if (Math.abs(fx - s.rivX(0, fz)) < 12) continue; farmers.push([fx, s.H(fx, fz), fz, s.h2(f, 103)]); for (var q = 0; q < 3; q++) { var sx2 = fx + (s.h2(f * 5 + q, 104) - 0.5) * 4, sz2 = fz + (s.h2(f * 5 + q, 105) - 0.5) * 4; sheaves.push([sx2, s.H(sx2, sz2), sz2, s.h2(q, 106)]); } }
+    for (var f = 0; f < 22; f++) { var fx = 4 + s.h2(f, 101) * 120, fz = -12 - s.h2(f, 102) * 58; var plot = s.h2(Math.floor(fx / 7), Math.floor(fz / 11.4)); if (Math.abs(fx - s.rivX(0, fz)) < 12 || s.padHit(fx, fz)) continue; farmers.push([fx, s.H(fx, fz), fz, s.h2(f, 103)]); for (var q = 0; q < 3; q++) { var sx2 = fx + (s.h2(f * 5 + q, 104) - 0.5) * 4, sz2 = fz + (s.h2(f * 5 + q, 105) - 0.5) * 4; sheaves.push([sx2, s.H(sx2, sz2), sz2, s.h2(q, 106)]); } }
     s.inst(T3, farmer, farmers, function (p, i, d, c) { d.position.set(p[0], p[1], p[2]); d.rotation.y = p[3] * 6.28; d.scale.set(1.05, 1.05, 1.05); c.setStyle(['#ffffff', '#f2d7a0', '#d84a3a', '#2f6fd4', '#f6f0e4', '#6fae4a'][i % 6]); }, mat);
     s.inst(T3, sheaf, sheaves, function (p, i, d, c) { d.position.set(p[0], p[1], p[2]); d.rotation.y = p[3] * 6.28; d.scale.set(1, 1, 1); }, mat);
     var cow = s.merge(T3, legs(L('#5a4232'), 0.3, 0.6, 0.9, 0.11, 0.12).concat([{ geo: sph, c: L('#7b5a42'), y: 1.3, sx: 0.5, sy: 0.5, sz: 1.05 }, { geo: sph, c: L('#6d4e38'), y: 1.45, z: 1.05, sx: 0.28, sy: 0.3, sz: 0.4 }, { geo: cone, c: L('#e6dcc8'), x: 0.2, y: 1.75, z: 1.0, sx: 0.05, sy: 0.3, sz: 0.05, rz: -0.6 }, { geo: cone, c: L('#e6dcc8'), x: -0.2, y: 1.75, z: 1.0, sx: 0.05, sy: 0.3, sz: 0.05, rz: 0.6 }, { geo: sph, c: L('#6d4e38'), y: 1.65, z: 0.1, sx: 0.3, sy: 0.3, sz: 0.3 }, { geo: cyl, c: L('#5a4232'), y: 1.2, z: -1.1, sx: 0.04, sy: 0.7, sz: 0.04, rx: 0.3 }]));
@@ -468,161 +492,174 @@ export class JourneyEngine {
     var flock = []; for (var b = 0; b < 22; b++) flock.push([300 + s.h2(b, 171) * 120, 22 + s.h2(b, 172) * 18, -50 - s.h2(b, 173) * 150, b]);
     s.birds = s.inst(T3, birdG, flock, function (p, i, d, c) { d.position.set(p[0], p[1], p[2]); d.rotation.y = 1.2; d.scale.set(1.6, 1, 1.6); }, new T3.MeshStandardMaterial({ vertexColors: true, side: T3.DoubleSide, roughness: 1 })); s.flock = flock;
   }
-  buildWalker(T3) {
-    /* the traveller: four articulated figures for four ages — schoolboy, student, engineer, trekker — swapped as the journey climbs.
-       Legs and arms are separate meshes pivoted at hip and shoulder so the gait can follow the scroll speed: walk, then run. */
-    var s = this, L = s.lin.bind(s), sph = new T3.SphereGeometry(1, 12, 9), cyl = new T3.CylinderGeometry(0.5, 0.5, 1, 8), box = new T3.BoxGeometry(1, 1, 1), skin = L('#b8805a'), hair = L('#1d1612');
-    var mat = new T3.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, emissive: 0xffe2b8, emissiveIntensity: 0 }); mat.onBeforeCompile = function (sh) { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= diffuseColor.rgb;'); }; s.walkerMat = mat;
-    var mk = function (parts) { var m = new T3.Mesh(s.merge(T3, parts), mat); m.castShadow = true; return m; };
-    var person = function (o) {
-      var h = o.h, lw = 0.16 * h, g = new T3.Group();
-      var torso = mk([
-        { geo: cyl, c: o.top, y: 1.2 * h, sx: 0.4 * h, sy: 0.72 * h, sz: 0.28 * h }, { geo: sph, c: o.top, y: 1.56 * h, sx: 0.42 * h, sy: 0.14 * h, sz: 0.3 * h },
-        { geo: cyl, c: o.trouser, y: 0.84 * h, sx: 0.36 * h, sy: 0.1 * h, sz: 0.26 * h },
-        { geo: cyl, c: skin, y: 1.66 * h, sx: 0.1 * h, sy: 0.14 * h, sz: 0.1 * h }, { geo: sph, c: skin, y: 1.86 * h, sx: 0.21 * h, sy: 0.24 * h, sz: 0.22 * h },
-        { geo: sph, c: hair, y: 1.94 * h, z: -0.03 * h, sx: 0.22 * h, sy: 0.19 * h, sz: 0.23 * h }].concat(o.extra || []));
-      g.add(torso);
-      var leg = function (sx) { var m = mk([{ geo: cyl, c: o.trouser, y: -0.42 * h, sx: lw, sy: 0.84 * h, sz: lw }, { geo: box, c: o.shoe, y: -0.8 * h, z: 0.04 * h, sx: lw * 1.2, sy: 0.1 * h, sz: lw * 1.9 }]); m.position.set(sx * 0.12 * h, 0.84 * h, 0); g.add(m); return m; };
-      var arm = function (sx) { var m = mk([{ geo: cyl, c: o.sleeve || o.top, y: -0.3 * h, sx: 0.11 * h, sy: 0.62 * h, sz: 0.11 * h }, { geo: sph, c: skin, y: -0.62 * h, sx: 0.09 * h, sy: 0.09 * h, sz: 0.09 * h }].concat(o.hand ? o.hand.map(function (e) { var c = {}; for (var k in e) c[k] = e[k]; c.y = (c.y || 0) - 0.62 * h; return c; }) : [])); m.position.set(sx * 0.3 * h, 1.52 * h, 0); m.rotation.z = -sx * 0.08; g.add(m); return m; };
-      g.userData = { legL: leg(1), legR: leg(-1), armL: arm(1), armR: arm(-1), h: h };
-      g.rotation.order = 'YXZ'; g.rotation.y = Math.PI / 2; g.visible = false; s.scene.add(g); return g;
-    };
-    var variants = [
-      { h: 0.62, top: L('#4f8ad8'), trouser: L('#1f2d5c'), shoe: L('#222'), extra: [{ geo: box, c: L('#c9323a'), y: 0.78, z: -0.2, sx: 0.3, sy: 0.34, sz: 0.16 }] },
-      { h: 0.9, top: L('#f1efe9'), trouser: L('#2c3f6b'), shoe: L('#3a2a1e'), extra: [{ geo: box, c: L('#6b4a2e'), x: 0.3, y: 0.85, z: 0.05, sx: 0.22, sy: 0.3, sz: 0.1 }, { geo: cyl, c: L('#6b4a2e'), x: -0.1, y: 1.3, sx: 0.03, sy: 0.9, sz: 0.03, rz: 0.5 }] },
-      { h: 1.0, top: L('#2b3140'), trouser: L('#5a5650'), shoe: L('#1a1a1a'), extra: [{ geo: box, c: L('#e8e4dc'), y: 1.22, z: 0.13, sx: 0.14, sy: 0.6, sz: 0.06 }], hand: [{ geo: box, c: L('#1e1e22'), y: -0.1, sx: 0.08, sy: 0.34, sz: 0.42 }] },
-      { h: 1.0, top: L('#d8322a'), trouser: L('#2a2d33'), shoe: L('#3b3b3b'), extra: [{ geo: box, c: L('#2f6fd4'), y: 1.25, z: -0.26, sx: 0.4, sy: 0.6, sz: 0.3 }, { geo: sph, c: L('#f2b705'), y: 1.98, sx: 0.23, sy: 0.17, sz: 0.24 }], hand: [{ geo: cyl, c: L('#333'), y: -0.3, sx: 0.025, sy: 1.3, sz: 0.025 }] }];
-    s.walkers = variants.map(person);
-    s.walker = s.walkers[0]; s.walker.visible = true; s.wIdx = 0; s.stride = 0; s.gait = 0; s.lean = 0;
+  /* ---- people: one rig for every figure. Lathe torso and hips, capsule limbs jointed at hip, knee, shoulder and elbow, hands and shoes,
+     and a head with hair, eyes, brows, nose, ears and mouth; clothing per role. The traveller animates the rig; crowds bake posed copies
+     into instanced meshes, where the clothing parts take each instance's colour. ---- */
+  rig(T3, o, mat) {
+    var s = this, L = s.lin.bind(s), H = 2 * (o.h || 1), q = function (v) { return v * H; }, sph = s._rs || (s._rs = new T3.SphereGeometry(1, 16, 12)), cyl = s._rc || (s._rc = new T3.CylinderGeometry(1, 1, 1, 16)), box = s._rb || (s._rb = new T3.BoxGeometry(1, 1, 1));
+    var C = function (h) { return h ? L(h) : null; }, skin = C(o.skin || '#a8714a'), skinD = skin.map(function (v) { return v * 0.8; }), hair = C(o.hair || '#17110d'), top = C(o.top || '#141417'), low = C(o.low || '#2a2f3a'), shoe = C(o.shoe || '#1b1b1d'), sleeve = o.sleeve === 'short' ? null : top, dk = C('#120d0b');
+    var cap = function (r, l) { return new T3.CapsuleGeometry(q(r), q(l), 4, 12); }, lathe = function (pts, sz) { var g = new T3.LatheGeometry(pts.map(function (p) { return new T3.Vector2(q(p[0]), q(p[1])); }), 20); g.scale(1, 1, sz); return g; };
+    var P = function (geo, c, t, p, sc, r) { return { geo: geo, c: c, t: !!t, x: q(p[0]), y: q(p[1]), z: q(p[2]), sx: sc ? q(sc[0]) : 1, sy: sc ? q(sc[1]) : 1, sz: sc ? q(sc[2]) : 1, rx: r ? r[0] : 0, ry: r ? r[1] : 0, rz: r ? r[2] : 0 }; };
+    var root = new T3.Group(), segs = [];
+    var seg = function (parent, pos, parts, tag) { var g = new T3.Group(); g.position.set(q(pos[0]), q(pos[1]), q(pos[2])); parent.add(g); [false, true].forEach(function (t) { var list = parts.filter(function (p) { return p && p.t === t; }); if (!list.length) return; var m = new T3.Mesh(s.merge(T3, list), mat); m.castShadow = true; m.userData.tint = t; if (tag) m.userData.tag = tag; g.add(m); }); return g; };
+    var dressed = !o.gown && !o.sari, body = [
+      P(lathe([[0, 0.49], [0.07, 0.492], [0.087, 0.52], [0.088, 0.56], [0.081, 0.6], [0, 0.6]], 0.7), o.skirt ? top : low, o.skirt ? 1 : 0, [0, 0, 0]),
+      P(lathe([[0, 0.595], [0.081, 0.6], [0.079, 0.635], [0.087, 0.685], [0.097, 0.745], [0.1, 0.785], [0.094, 0.812], [0.058, 0.833], [0, 0.838]], 0.62), top, 1, [0, 0, 0]),
+      P(sph, top, 1, [0, 0.806, 0], [0.102, 0.03, 0.062]),
+      P(cyl, skin, 0, [0, 0.845, 0], [0.026, 0.05, 0.026])];
+    if (dressed && !o.skirt) body.push(P(cyl, dk, 0, [0, 0.6, 0], [0.083, 0.013, 0.057]));
+    if (o.collar) body.push(P(new T3.TorusGeometry(1, 0.28, 6, 18), C(o.collar), 0, [0, 0.832, 0.006], [0.033, 0.033, 0.03], [Math.PI / 2 - 0.25, 0, 0]));
+    if (o.tie) body.push(P(box, C(o.tie), 0, [0, 0.735, 0.063], [0.022, 0.14, 0.006], [-0.12, 0, 0]), P(sph, C(o.tie), 0, [0, 0.812, 0.052], [0.013, 0.011, 0.01]));
+    if (o.tee) body.push(P(box, C(o.tee), 0, [0, 0.72, 0.06], [0.05, 0.19, 0.006], [-0.1, 0, 0]));
+    if (o.vest) body.push(P(lathe([[0, 0.6], [0.085, 0.605], [0.091, 0.685], [0.101, 0.75], [0.104, 0.79], [0.06, 0.81], [0, 0.812]], 0.66), C(o.vest), 0, [0, 0, 0]), P(box, C('#e9ecef'), 0, [0, 0.66, 0.069], [0.17, 0.014, 0.004]), P(box, C('#e9ecef'), 0, [0, 0.71, 0.068], [0.18, 0.014, 0.004]));
+    if (o.puff) [0.64, 0.69, 0.745].forEach(function (y) { body.push(P(new T3.TorusGeometry(1, 0.12, 6, 20), top, 0, [0, y, 0], [0.092, 0.092, 0.06], [Math.PI / 2, 0, 0])); });
+    if (o.pack) body.push(P(box, C(o.pack), 0, [0, 0.705, -0.085], [0.15, 0.19, 0.075]), P(sph, C(o.pack), 0, [0, 0.8, -0.085], [0.075, 0.03, 0.037]), P(box, C(o.pack), 0, [0, 0.66, -0.126], [0.11, 0.08, 0.014]), P(box, dk, 0, [0.055, 0.73, 0.062], [0.018, 0.17, 0.008], [-0.15, 0, 0]), P(box, dk, 0, [-0.055, 0.73, 0.062], [0.018, 0.17, 0.008], [-0.15, 0, 0]));
+    if (o.skirt) body.push(P(new T3.CylinderGeometry(1, 1.45, 1, 16), C(o.skirt), 0, [0, 0.45, 0], [0.085, 0.2, 0.07]));
+    if (o.sari) body.push(P(new T3.CylinderGeometry(0.62, 1, 1, 18), top, 1, [0, 0.29, 0], [0.13, 0.58, 0.11]), P(box, top, 1, [0.01, 0.7, 0.066], [0.07, 0.3, 0.008], [0, 0, 0.55]), P(box, C(o.sariB || '#d9a441'), 0, [0, 0.03, 0.07], [0.2, 0.025, 0.04]));
+    if (o.gown) body.push(P(new T3.CylinderGeometry(0.68, 1, 1, 18), C('#141417'), 0, [0, 0.47, 0], [0.15, 0.66, 0.12]), P(box, C('#c8102e'), 0, [0.04, 0.66, 0.106], [0.032, 0.3, 0.008], [-0.15, 0, 0.04]), P(box, C('#c8102e'), 0, [-0.04, 0.66, 0.106], [0.032, 0.3, 0.008], [-0.15, 0, -0.04]), P(box, C('#e2b23c'), 0, [0.04, 0.52, 0.12], [0.034, 0.02, 0.008]), P(box, C('#e2b23c'), 0, [-0.04, 0.52, 0.12], [0.034, 0.02, 0.008]));
+    var torso = seg(root, [0, 0, 0], body);
+    var hd = [P(sph, skin, 0, [0, 0.08, 0.004], [0.058, 0.07, 0.063]), P(sph, skin, 0, [0, 0.045, 0.016], [0.045, 0.04, 0.05]),
+      P(new T3.SphereGeometry(1, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.56), hair, 0, [0, 0.089, -0.004], [0.062, 0.072, 0.068], [-0.28, 0, 0]), P(sph, hair, 0, [0, 0.07, -0.024], [0.058, 0.062, 0.048]),
+      P(sph, C('#e8e2d8'), 0, [0.021, 0.085, 0.0575], [0.012, 0.0075, 0.004]), P(sph, C('#e8e2d8'), 0, [-0.021, 0.085, 0.0575], [0.012, 0.0075, 0.004]),
+      P(sph, dk, 0, [0.021, 0.085, 0.0605], [0.0065, 0.0068, 0.003]), P(sph, dk, 0, [-0.021, 0.085, 0.0605], [0.0065, 0.0068, 0.003]),
+      P(box, hair, 0, [0.022, 0.1, 0.06], [0.024, 0.0048, 0.006], [0, 0, -0.08]), P(box, hair, 0, [-0.022, 0.1, 0.06], [0.024, 0.0048, 0.006], [0, 0, 0.08]),
+      P(sph, skinD, 0, [0, 0.07, 0.064], [0.01, 0.017, 0.014]), P(box, C('#7a3b32'), 0, [0, 0.046, 0.061], [0.019, 0.0035, 0.004]),
+      P(sph, skin, 0, [0.058, 0.08, 0], [0.009, 0.017, 0.011]), P(sph, skin, 0, [-0.058, 0.08, 0], [0.009, 0.017, 0.011])];
+    if (o.long) hd.push(P(cap(0.04, 0.12), hair, 0, [0, 0.0, -0.04]), P(sph, hair, 0, [0, 0.085, -0.01], [0.064, 0.07, 0.066]));
+    if (o.braids) [-1, 1].forEach(function (k) { hd.push(P(cap(0.014, 0.12), hair, 0, [k * 0.05, -0.02, -0.01]), P(sph, C('#c8102e'), 0, [k * 0.05, -0.095, -0.01], [0.012, 0.012, 0.012])); });
+    if (o.beanie) hd.push(P(new T3.SphereGeometry(1, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), C(o.beanie), 0, [0, 0.098, -0.004], [0.066, 0.06, 0.07]), P(cyl, C(o.beanie), 0, [0, 0.1, -0.004], [0.066, 0.016, 0.07]), P(sph, C('#f4f1e8'), 0, [0, 0.162, -0.004], [0.016, 0.016, 0.016]));
+    if (o.mortar) hd.push(P(box, C('#141417'), 0, [0, 0.158, -0.004], [0.17, 0.012, 0.17], [0, Math.PI / 4, 0]), P(cyl, C('#141417'), 0, [0, 0.135, -0.004], [0.068, 0.04, 0.072]), P(box, C('#e2b23c'), 0, [0.07, 0.12, 0.02], [0.006, 0.07, 0.006]));
+    var neck = seg(root, [0, 0.845, 0], hd);
+    var J = { root: root, torso: torso, neck: neck, h: o.h || 1, H: H };
+    [1, -1].forEach(function (k) {
+      var side = k > 0 ? 'L' : 'R', sl = o.gown ? C('#141417') : (sleeve || top), arm = [P(sph, sl, !o.gown && 1, [0, -0.004, 0], [0.036, 0.038, 0.035])];
+      if (o.gown) arm.push(P(new T3.CylinderGeometry(0.55, 1, 1, 14), sl, 0, [0, -0.1, 0.004], [0.07, 0.2, 0.06]), P(cap(0.028, 0.12), skin, 0, [0, -0.085, 0]));
+      else if (sleeve) arm.push(P(cap(0.031, 0.125), sl, 1, [0, -0.085, 0]));
+      else arm.push(P(cap(0.034, 0.045), top, 1, [0, -0.035, 0]), P(cap(0.027, 0.13), skin, 0, [0, -0.088, 0]));
+      var sh = seg(root, [k * 0.129, 0.808, 0], arm);
+      var fore = [P(cap(0.025, 0.115), sleeve && !o.gown ? sleeve : skin, sleeve && !o.gown, [0, -0.074, 0]), P(sph, skin, 0, [0, -0.166, 0.004], [0.016, 0.036, 0.027]), P(cap(0.007, 0.02), skin, 0, [-k * 0.012, -0.152, 0.02], null, [0.5, 0, k * 0.4])];
+      if (sleeve && !o.gown) fore.push(P(cyl, sleeve, 1, [0, -0.135, 0], [0.026, 0.02, 0.026]));
+      var el = seg(sh, [0, -0.165, 0], fore);
+      var thighC = o.skirt || o.sari || o.gown ? (o.skirt ? skin : C(o.gown ? '#141417' : o.top)) : low, legP = [P(cap(0.046, 0.185), thighC, o.sari, [0, -0.115, 0])];
+      var hip = seg(root, [k * 0.05, 0.52, 0], legP);
+      var shinC = o.skirt ? C('#f1efe9') : o.sari ? skin : low, shin = [P(cap(0.036, 0.195), shinC, 0, [0, -0.115, 0]), P(sph, shoe, 0, [0, -0.222, 0.024], [0.034, 0.025, 0.068]), P(box, dk, 0, [0, -0.236, 0.022], [0.064, 0.012, 0.135])];
+      if (o.boots) shin.push(P(cap(0.04, 0.05), shoe, 0, [0, -0.19, 0]));
+      var knee = seg(hip, [0, -0.235, 0], shin);
+      J['arm' + side] = sh; J['el' + side] = el; J['leg' + side] = hip; J['knee' + side] = knee;
+    });
+    root.userData = { legL: J.legL, legR: J.legR, armL: J.armL, armR: J.armR, kneeL: J.kneeL, kneeR: J.kneeR, elL: J.elL, elR: J.elR, neck: neck, torso: torso, h: o.h || 1, H: H };
+    root.rotation.order = 'YXZ';
+    return root;
   }
+  /* static poses for crowds; angles in radians on the rig's joints */
+  poseRig(g, name) {
+    var u = g.userData, set = function (j, x, z) { j.rotation.set(x || 0, 0, z || 0); };
+    set(u.armL, 0, 0.07); set(u.armR, 0, -0.07); set(u.elL, -0.12); set(u.elR, -0.12); set(u.legL); set(u.legR); set(u.kneeL); set(u.kneeR); set(u.neck);
+    if (name === 'attn') { set(u.armL, 0, 0.04); set(u.armR, 0, -0.04); set(u.elL, -0.04); set(u.elR, -0.04); }
+    if (name === 'clasp') { set(u.armL, -0.32, 0.05); set(u.armR, -0.32, -0.05); set(u.elL, -1.05); set(u.elR, -1.05); }
+    if (name === 'talk') { set(u.armR, -0.55, -0.22); set(u.elR, -1.15); set(u.neck, 0.05); }
+    if (name === 'point') { set(u.armL, -1.25, 0.15); set(u.elL, -0.1); }
+    if (name === 'hand') { set(u.armR, -0.95, -0.12); set(u.elR, -0.45); }
+    if (name === 'cheer') { set(u.armL, -0.3, 2.6); set(u.armR, -0.3, -2.6); set(u.elL, -0.2); set(u.elR, -0.2); }
+    if (name === 'sit' || name === 'type') { set(u.legL, -1.5); set(u.legR, -1.5); set(u.kneeL, 1.5); set(u.kneeR, 1.5); set(u.armL, name === 'type' ? -0.5 : -0.42, 0.06); set(u.armR, name === 'type' ? -0.5 : -0.42, -0.06); set(u.elL, -1.0); set(u.elR, -1.0); set(u.neck, 0.12); }
+  }
+  /* a posed figure flattened into two geometries: clothing (white, so each instance colours it) and everything else; seated poses sit on a 0.5 seat */
+  bakePerson(T3, o, pose) {
+    var s = this, key = JSON.stringify(o) + pose; s._bp = s._bp || {}; if (s._bp[key]) return s._bp[key];
+    var g = s.rig(T3, o, null); s.poseRig(g, pose); g.updateMatrixWorld(true);
+    var out = { tint: [], base: [] }, lift = pose === 'sit' || pose === 'type' ? 0.5 - (0.52 - 0.046) * g.userData.H : 0;
+    g.traverse(function (m) { if (!m.isMesh) return; var geo = m.geometry.clone(); geo.applyMatrix4(m.matrixWorld); geo.translate(0, lift, 0); if (m.userData.tint) { var c = geo.attributes.color; for (var i = 0; i < c.count; i++) c.setXYZ(i, 1, 1, 1); } (m.userData.tint ? out.tint : out.base).push(geo); });
+    var r = { tint: out.tint.length ? mergeGeometries(out.tint) : null, base: mergeGeometries(out.base) }; s._bp[key] = r; return r;
+  }
+  buildWalker(T3) {
+    /* the traveller at four ages: schoolboy in uniform and tie, college student with a backpack, engineer in an office shirt with a laptop,
+       trekker in a down jacket. Swapped as the journey climbs; hips, knees, shoulders and elbows follow the scroll speed from a walk into a run. */
+    var s = this, L = s.lin.bind(s), box = new T3.BoxGeometry(1, 1, 1);
+    var mat = new T3.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, emissive: 0xffe2b8, emissiveIntensity: 0 }); mat.onBeforeCompile = function (sh) { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= diffuseColor.rgb;'); }; s.walkerMat = mat;
+    var variants = [
+      { h: 0.8, top: '#a9cbe8', low: '#1f2d5c', tie: '#7a1f2b', collar: '#c3dbf0', sleeve: 'short', pack: '#8c2a24', shoe: '#141414' },
+      { h: 0.9, top: '#5e6b47', tee: '#ece8df', low: '#3b5b8c', shoe: '#e9e6df', pack: '#2b3140' },
+      { h: 1.0, top: '#cfe0f2', collar: '#dde9f6', low: '#3a3f4a', shoe: '#4a3020' },
+      { h: 1.0, top: '#c8352b', low: '#2a2d33', shoe: '#5a3a24', boots: true, puff: true, beanie: '#f2b705', pack: '#2f6fd4' }];
+    s.walkers = variants.map(function (o) { var g = s.rig(T3, o, mat); g.visible = false; s.scene.add(g); return g; });
+    /* graduation day: gown, stole and mortarboard over the engineer while that chapter speaks */
+    var w2 = s.walkers[2].userData, blk = L('#141417'), red = L('#c8102e'), gold = L('#e2b23c'), cyl = new T3.CylinderGeometry(1, 1, 1, 16); s.gownParts = [];
+    var gp = function (to, parts) { var m = new T3.Mesh(s.merge(T3, parts), mat); m.castShadow = true; m.visible = false; to.add(m); s.gownParts.push(m); return m; };
+    gp(w2.torso, [{ geo: new T3.CylinderGeometry(0.68, 1, 1, 18), c: blk, y: 0.94, sx: 0.31, sy: 1.32, sz: 0.25 }, { geo: box, c: red, x: 0.08, y: 1.32, z: 0.212, sx: 0.064, sy: 0.6, sz: 0.016, rx: -0.15, rz: 0.04 }, { geo: box, c: red, x: -0.08, y: 1.32, z: 0.212, sx: 0.064, sy: 0.6, sz: 0.016, rx: -0.15, rz: -0.04 }, { geo: box, c: gold, x: 0.08, y: 1.04, z: 0.24, sx: 0.068, sy: 0.04, sz: 0.016 }, { geo: box, c: gold, x: -0.08, y: 1.04, z: 0.24, sx: 0.068, sy: 0.04, sz: 0.016 }]);
+    [w2.armL, w2.armR].forEach(function (a) { gp(a, [{ geo: new T3.CylinderGeometry(0.55, 1, 1, 14), c: blk, y: -0.2, z: 0.008, sx: 0.14, sy: 0.4, sz: 0.12 }]); });
+    s.gownCap = gp(w2.neck, [{ geo: box, c: blk, y: 0.316, z: -0.008, sx: 0.34, sy: 0.024, sz: 0.34, ry: Math.PI / 4 }, { geo: cyl, c: blk, y: 0.27, z: -0.008, sx: 0.136, sy: 0.08, sz: 0.144 }, { geo: box, c: gold, x: 0.14, y: 0.24, z: 0.04, sx: 0.012, sy: 0.14, sz: 0.012 }]);
+    s.capG = s.merge(T3, [{ geo: box, c: L('#141417'), sx: 0.34, sy: 0.024, sz: 0.34, ry: Math.PI / 4 }, { geo: new T3.CylinderGeometry(1, 1, 1, 16), c: L('#141417'), y: -0.045, sx: 0.136, sy: 0.08, sz: 0.144 }, { geo: box, c: L('#e2b23c'), x: 0.14, y: -0.07, sx: 0.012, sy: 0.14, sz: 0.012 }]);
+    /* props he carries at a stop: a certificate, a graduation folder, and the student's laptop under his arm */
+    var certT = (function () { var c = document.createElement('canvas'); c.width = 128; c.height = 96; var g = c.getContext('2d'); g.fillStyle = '#f7f3e8'; g.fillRect(0, 0, 128, 96); g.strokeStyle = '#c99a2e'; g.lineWidth = 6; g.strokeRect(5, 5, 118, 86); g.fillStyle = '#4a5568'; for (var r = 0; r < 4; r++) g.fillRect(26, 24 + r * 11, 76 - (r % 2) * 18, 4); g.fillStyle = '#c8302a'; g.beginPath(); g.arc(98, 72, 9, 0, 6.283); g.fill(); var t = new T3.CanvasTexture(c); t.colorSpace = T3.SRGBColorSpace; return t; })();
+    s.docPaper = [0, 1, 2, 3, 4, 5].map(function (f) { return f === 4 || f === 5 ? new T3.MeshStandardMaterial({ map: certT, roughness: 0.8 }) : new T3.MeshStandardMaterial({ color: 0xf7f3e8, roughness: 0.8 }); }); s.docNavy = new T3.MeshStandardMaterial({ color: 0x1d2a5a, roughness: 0.6 });
+    s.walkers.forEach(function (g, wi) { var u = g.userData, H = u.H; u.doc = new T3.Mesh(box, s.docPaper); u.doc.scale.set(0.42, 0.32, 0.03); u.doc.position.set(0, -0.2 * H, 0.03 * H); u.doc.visible = false; u.elL.add(u.doc);
+      if (wi >= 1 && wi <= 2) { u.lap = new T3.Mesh(box, new T3.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.35, metalness: 0.7 })); u.lap.scale.set(0.04, 0.3, 0.42); u.lap.position.set(wi === 1 ? -0.03 * H : 0.02 * H, -0.17 * H, 0.04 * H); u.lap.visible = false; u.lap.castShadow = true; u.elR.add(u.lap); } });
+    s.walker = s.walkers[0]; s.walker.visible = true; s.wIdx = 0; s.stride = 0; s.gait = 0; s.lean = 0; s.yaw = Math.PI / 2;
+  }
+
   stepWalker(cx, rh, cam, T) {
     var s = this, T3 = window.THREE;
-    var want = cx < s.pinX(1) * s.SC - 20 ? 0 : cx < s.pinX(3) * s.SC - 20 ? 1 : cx < s.pinX(9) * s.SC - 20 ? 2 : 3;
+    var want = cx < s.pinX(1) * s.SC - 20 ? 0 : cx < s.pinX(3) * s.SC - 20 ? 1 : cx < s.pinX(10) * s.SC - 20 ? 2 : 3;
     if (want !== s.wIdx && !s.wSw) { s.wSw = { from: s.wIdx, to: want, t: 0 }; s.walkers[want].visible = true; }
     if (!s.wGlow) { s.wGlow = new T3.Sprite(new T3.SpriteMaterial({ map: s.glowTex(T3), transparent: true, depthWrite: false, opacity: 0, color: 0xffe9b0 })); s.scene.add(s.wGlow); s.wRing = new T3.Mesh(new T3.RingGeometry(0.8, 1.0, 32), new T3.MeshBasicMaterial({ color: 0xffe9b0, transparent: true, opacity: 0, side: T3.DoubleSide, depthWrite: false })); s.wRing.rotation.x = -Math.PI / 2; s.scene.add(s.wRing); }
-    if (s.wSw) { s.wSw.t += 0.012; var wa = s.walkers[s.wSw.from], wb = s.walkers[s.wSw.to], wk = Math.min(1, s.wSw.t), ke = wk * wk * (3 - 2 * wk), pk = Math.sin(wk * Math.PI); wa.scale.set(1 - ke, 1 - ke, 1 - ke); wb.scale.set(ke, ke, ke); s.wGlow.material.opacity = pk; s.wGlow.scale.set(5 + pk * 4, 5 + pk * 4, 1); s.wGlow.position.set(cx, rh + 1.1, 0.2); s.wRing.material.opacity = 0.9 * (1 - wk); var rs = 0.6 + wk * 4; s.wRing.scale.set(rs, rs, rs); s.wRing.position.set(cx, rh + 0.15, 0); s.wLabel = { t: wk, k: s.wSw.to }; if (wk >= 1) { wa.visible = false; wa.scale.set(1, 1, 1); s.wIdx = s.wSw.to; s.walker = wb; s.wSw = null; s.wGlow.material.opacity = 0; s.wRing.material.opacity = 0; s.wLabel = { t: 1, k: s.wIdx, hold: 90 }; } } else if (s.wLabel && s.wLabel.hold > 0) s.wLabel.hold--; else s.wLabel = null;
-    /* gait from scroll speed: stride phase advances with distance travelled; amplitude and lean grow from a walk into a run */
-    var sp = Math.abs(cam - (s.lastCam == null ? cam : s.lastCam)); s.lastCam = cam;
+    if (s.wSw) { s.wSw.t += Math.min(0.05, (s.dt || 0.016) * 0.75); var wa = s.walkers[s.wSw.from], wb = s.walkers[s.wSw.to], wk = Math.min(1, s.wSw.t), ke = wk * wk * (3 - 2 * wk), pk = Math.sin(wk * Math.PI); wa.scale.set(1 - ke, 1 - ke, 1 - ke); wb.scale.set(ke, ke, ke); s.wGlow.material.opacity = pk; s.wGlow.scale.set(5 + pk * 4, 5 + pk * 4, 1); s.wGlow.position.set(cx, rh + 1.1, 0.2); s.wRing.material.opacity = 0.9 * (1 - wk); var rs = 0.6 + wk * 4; s.wRing.scale.set(rs, rs, rs); s.wRing.position.set(cx, rh + 0.15, 0); if (wk >= 1) { wa.visible = false; wa.scale.set(1, 1, 1); s.wIdx = s.wSw.to; s.walker = wb; s.wSw = null; s.wGlow.material.opacity = 0; s.wRing.material.opacity = 0; } }
+    /* at a chapter stop he walks to the chapter's own spot (the yard, the stage, the desk), turns to the camera and acts it out */
+    var o = s.sto, C = o.k >= 0 ? s.chapters()[o.k] : null, act = C ? C.act : s.lastAct || 'talk', dt = s.dt || 0.016; if (C) s.lastAct = act;
+    if (C) s.spot = (s.SPOT && s.SPOT[o.k]) || { x: s.pinX(o.k) * s.SC - 1, z: 0 };
+    s.spotK = (s.spotK || 0) + ((C && s.mode < 0.5 ? 1 : 0) - (s.spotK || 0)) * Math.min(1, dt * 1.5); var sk = s.spotK * s.spotK * (3 - 2 * s.spotK), SP = s.spot || { x: cx, z: 0 };
+    var wx = cx + (SP.x - cx) * sk, wz = SP.z * sk, mvx = wx - (s.lwx == null ? wx : s.lwx), mvz = wz - (s.lwz == null ? wz : s.lwz), mvd = Math.hypot(mvx, mvz); s.lwx = wx; s.lwz = wz;
+    /* gait from scroll speed (and from the walk to the spot): stride phase advances with distance travelled; amplitude and lean grow from a walk into a run */
+    var sp = Math.max(Math.abs(cam - (s.lastCam == null ? cam : s.lastCam)), C ? mvd / s.SC : 0); s.lastCam = cam;
     var moving = sp > 0.15, run = s.ss(6, 22, sp), amp = moving ? 0.55 + 0.75 * run : 0;
     s.gait += (amp - s.gait) * 0.18; s.lean += ((moving ? 0.08 + 0.3 * run : 0) - s.lean) * 0.1;
     s.stride += sp * (0.14 - 0.05 * run); if (!moving) { var ph = s.stride % Math.PI; s.stride += (ph > Math.PI / 2 ? Math.PI - ph : -ph) * 0.2; }
-    var a = Math.sin(s.stride) * s.gait, kneeLift = Math.max(0, Math.sin(s.stride * 2)) * 0.12 * run, dir = cam >= (s.prevCam == null ? cam : s.prevCam) ? 1 : -1; s.prevCam = cam;
+    var a = Math.sin(s.stride) * s.gait;
+    if (cam !== s.prevCam) s.dir = cam > (s.prevCam == null ? cam : s.prevCam) ? 1 : -1; s.prevCam = cam; var dir = s.dir || 1;
     var bob = Math.abs(Math.sin(s.stride)) * (0.05 + 0.1 * run) * (moving ? 1 : 0), dy = s.deckY(cx);
+    s.pose += ((C && s.mode < 0.5 && s.spotK > 0.8 ? 1 : 0) - s.pose) * Math.min(1, dt * 3.2); var pe = s.pose * s.pose * (3 - 2 * s.pose), seated = act === 'type' || act === 'sit', sit = seated && SP.seat != null ? s.ss(0.9, 1, s.spotK) : 0;
+    var yawT = SP.yaw != null ? SP.yaw : { talk: 0.3, cert: 0.15, point: 0.55, toss: 0.25, gaze: Math.PI - 0.35 }[act], tgt = C && s.spotK < 0.9 && mvd > 0.004 ? Math.atan2(mvx, mvz) : C ? yawT : dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+    var dyaw = tgt - s.yaw; dyaw -= Math.PI * 2 * Math.round(dyaw / (Math.PI * 2)); s.yaw += dyaw * Math.min(1, dt * 7);
+    var sw = function (f, k) { return 0.5 + 0.5 * Math.sin(T * f + (k || 0)); }, lx = -0.45 - 0.3 * sw(2.4), lz = 0.17 + 0.1 * sw(1.9), le = -0.6 - 0.35 * sw(2.4, 1), rx = -0.2 - 0.15 * sw(1.7, 2), rz = -0.06, re = -0.25, nod = 0.05 * Math.sin(T * 3.3), sway = 0.035 * Math.sin(T * 1.2);
+    if (act === 'cert') { lx = -0.35; lz = 2.35 + 0.12 * Math.sin(T * 3); le = -0.25; }
+    if (act === 'point') { lx = -0.2; lz = 1.42 + 0.06 * Math.sin(T * 2); le = -0.05; }
+    if (act === 'toss' && s.tossT != null && T - s.tossT < 1.4) { lx = rx = -0.2; lz = 2.75; rz = -2.75; le = re = -0.1; }
+    if (act === 'type') { lx = rx = -0.5; lz = 0.1; rz = -0.1; le = -1.1 + 0.08 * Math.sin(T * 19); re = -1.1 + 0.08 * Math.sin(T * 19 + 1.7); sway = 0; nod = 0.12; }
+    if (act === 'sit') { lx = -0.45 - 0.25 * sw(2.2); lz = 0.14; le = -1.0 - 0.3 * sw(2.2, 1); rx = -0.4; rz = -0.1; re = -1.15; sway = 0.02 * Math.sin(T * 1.1); }
+    if (act === 'gaze') { lx = -2.35; lz = 0.05; le = -0.2; sway = 0.015 * Math.sin(T * 0.8); nod = -0.12; }
+    var hh = s.walker.userData.h, gy = rh + 0.06 + dy, fy = SP.y != null ? gy + (SP.y + 0.02 - gy) * sk : gy, wy = fy + bob * (1 - sit) + (sit && SP.seat != null ? (SP.seat - 0.948 * hh - fy) * sit : 0);
+    /* knees flex through the swing phase of each leg, elbows bend more as the walk becomes a run; the chest breathes */
+    var kfx = 1 + 0.5 * run, kL = s.gait * (0.12 + 0.95 * Math.max(0, -Math.cos(s.stride))) * kfx, kR = s.gait * (0.12 + 0.95 * Math.max(0, Math.cos(s.stride))) * kfx, ew = (0.3 + 1.1 * run) * Math.min(1, s.gait / 0.55), br = Math.sin(T * 2.2);
     for (var wi = 0; wi < s.walkers.length; wi++) { var g = s.walkers[wi]; if (!g.visible) continue; var u = g.userData;
-      g.position.set(cx, rh + 0.06 + bob + dy, 0); g.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2; g.rotation.x = s.lean;
-      u.legL.rotation.x = a; u.legR.rotation.x = -a; u.armL.rotation.x = -a * 0.8; u.armR.rotation.x = a * 0.8;
-      u.legL.position.y = u.h * 0.84 + kneeLift; }
+      g.position.set(wx, wy, wz); g.rotation.y = s.yaw; g.rotation.x = s.lean * (1 - pe); g.rotation.z = sway * pe;
+      u.legL.rotation.x = a * (1 - sit) - 1.5 * sit; u.legR.rotation.x = -a * (1 - sit) - 1.5 * sit; u.kneeL.rotation.x = kL * (1 - sit) + 1.5 * sit; u.kneeR.rotation.x = kR * (1 - sit) + 1.5 * sit;
+      u.armL.rotation.x = -a * 0.8 * (1 - pe) + lx * pe; u.armR.rotation.x = a * 0.8 * (1 - pe) + rx * pe; u.armL.rotation.z = 0.07 + (lz - 0.07) * pe; u.armR.rotation.z = -0.07 + (rz + 0.07) * pe;
+      u.elL.rotation.x = -ew * (1 - pe) + le * pe; u.elR.rotation.x = -ew * (1 - pe) + re * pe; u.neck.rotation.x = nod * pe; u.torso.scale.set(1 + 0.006 * br, 1 + 0.006 * br, 1 + 0.014 * br);
+      u.doc.visible = !!C && (act === 'cert' || act === 'toss') && pe > 0.3; u.doc.material = act === 'toss' ? s.docNavy : s.docPaper;
+      if (u.lap) u.lap.visible = wi === 1 ? o.k === 2 && pe > 0.3 : !(C && /type|sit|cert|toss/.test(act) && pe > 0.2); }
+    s.walkH = hh; s.focus = [wx, wy + 1.45 * hh, wz];
+    var grad = o.k === 6 && s.pose > 0.2; for (var gi = 0; gi < s.gownParts.length; gi++) s.gownParts[gi].visible = grad; s.gownCap.visible = grad && !(s.tossT != null && T - s.tossT > 0.25);
   }
-  /* ---- sound: six recorded ambiences, each looped and crossfaded by where you are on the trail.
-     village (plains + village), river (both bridges), forest (Chitwan), city (the valley), temple (Patan, Pashupatinath, Bhaktapur),
-     chant (Swayambhunath at the 2021 step and the rim monastery). A soft synthesised wind and snow hush cover the hills and the Himalaya. ---- */
-  audioOn() {
-    var s = this; if (s.au) { if (s.au.ctx.state === 'suspended') s.au.ctx.resume(); s.au.muted = false; s.au.master.gain.setTargetAtTime(1, s.au.ctx.currentTime, 0.4); s.setState({ snd: true }); return; }
-    var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
-    var ctx = new AC(), A = { ctx: ctx, muted: false, L: {} };
-    A.master = ctx.createGain(); A.master.gain.value = 0; A.master.connect(ctx.destination); A.master.gain.setTargetAtTime(1, ctx.currentTime, 0.8);
-    var SRC = { village: '/_blob/a13613728582abd48b78d2052eb52de8', river: '/_blob/3f0bc6f00459085d6cfcaf4d0b9ccc0e', forest: '/_blob/6579b3dd85372b55df9b65cb3fb15ef2', city: '/_blob/ecc818f4e03d33730c8aa7116a0cabb7', temple: '/_blob/5e060688e0ef7f02098b01f5087f583c', chant: '/_blob/e20f11e986d7dc8ebd24660dc3782421' };
-    var names = ['village', 'river', 'forest', 'city', 'temple', 'chant', 'night'];
-    names.forEach(function (n) {
-      var g = ctx.createGain(); g.gain.value = 0; g.connect(A.master); A.L[n] = { g: g, ready: false };
-      var load = function (u) { return fetch(u).then(function (r) { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }); };
-      load('/snd/' + n + '.mp3').catch(function () { return SRC[n] ? load(SRC[n]) : Promise.reject(new Error('no source')); }).then(function (buf) { return ctx.decodeAudioData(buf); }).then(function (ab) {
-        var src = ctx.createBufferSource(); src.buffer = ab; src.loop = true; src.loopStart = 0.15; src.loopEnd = ab.duration - 0.15; src.connect(g); src.start(); A.L[n].ready = true;
-      }).catch(function () { });
-    });
-    /* synthesised wind / snow hush for the hills and the high mountains */
-    var nb = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate), nd = nb.getChannelData(0), b0 = 0; for (var i = 0; i < nd.length; i++) { var w = Math.random() * 2 - 1; b0 = (b0 + 0.02 * w) / 1.02; nd[i] = w * 0.5 + b0 * 3.5; }
-    var bed = function (type, f, q) { var src = ctx.createBufferSource(); src.buffer = nb; src.loop = true; var bf = ctx.createBiquadFilter(); bf.type = type; bf.frequency.value = f; bf.Q.value = q; var gn = ctx.createGain(); gn.gain.value = 0; src.connect(bf); bf.connect(gn); gn.connect(A.master); src.start(); return { g: gn, f: bf }; };
-    A.wind = bed('bandpass', 420, 0.6); A.snow = bed('highpass', 6500, 0.4);
-    var kick = function () { if (A.ctx.state === 'suspended') A.ctx.resume(); }; ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (ev) { window.addEventListener(ev, kick, { passive: true }); });
-    s.au = A; s.setState({ snd: true });
+  /* ---- sound: short synthesised cues through one master gain (the narration voice joins it later). Nothing is created until a gesture,
+     and the header toggle (sndPref) gates it all ---- */
+  audioInit() {
+    var s = this; if (s.au || !s.sndPref) return s.au || null; var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
+    var ctx = new AC(), A = { ctx: ctx, muted: false }; A.master = ctx.createGain(); A.master.gain.value = 1; A.master.connect(ctx.destination);
+    var nb = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate), nd = nb.getChannelData(0); for (var i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1; A.nb = nb;
+    s.au = A; return A;
   }
-  audioOff() { var s = this; if (!s.au) return; s.au.muted = true; s.au.master.gain.setTargetAtTime(0, s.au.ctx.currentTime, 0.3); s.setState({ snd: false }); }
-  sceneMix(cx) {
-    var s = this, Z = s.zones(cx), vil = s.ss(118, 135, cx) * (1 - s.ss(205, 220, cx)), river = 0, k;
-    for (k = 0; k < 2; k++) river = Math.max(river, 1 - s.ss(10, 55, Math.abs(cx - s.rivX(k, 0))));
-    var near = function (k, w) { return 1 - s.ss(8, w || 48, Math.abs(cx - s.pinX(k) * s.SC)); };
-    return { plains: Z.T * (1 - s.forest(cx)), village: Z.T * vil, river: river * Z.T, jungle: s.forest(cx), hills: Z.H, city: Z.V, temple: 0, chant: Math.max(near(2, 50), near(7, 54), s.lum(cx)), snow: Z.M };
-  }
-  audioFrame(Z, en, cx, T) {
-    var s = this, A = s.au; if (!A || A.muted) return; var c = A.ctx, t = c.currentTime, M = s.sceneMix(cx), set = function (g, v, k) { g.gain.setTargetAtTime(v, t, k || 0.9); };
-    var began = s.cam > 40 ? 1 : 0.35, nt = s.nf || 0, dk = 1 - nt;
-    /* the recorded loops: one bed leads in each scene, with the river rising over the plains at the bridges and the shrines rising over the city */
-    set(A.L.village.g, dk * 0.9 * began * Math.max(0, M.plains - 0.5 * M.river) * (1 - M.jungle));
-    set(A.L.river.g, dk * 1.0 * M.river, 0.7);
-    set(A.L.forest.g, dk * 0.95 * M.jungle);
-    set(A.L.city.g, dk * 0.85 * M.city * (1 - 0.7 * M.temple) * (1 - 0.8 * M.chant));
-    set(A.L.temple.g, dk * 1.0 * M.temple, 0.6);
-    set(A.L.chant.g, dk * 1.0 * M.chant, 0.7);
-    /* after dark: one night ambience, everything else fades out */
-    if (A.L.night) set(A.L.night.g, 0.85 * nt, 0.8);
-    /* wind in the hills, wind and snow hush on the mountain */
-    set(A.wind.g, dk * (0.07 * M.hills + 0.24 * M.snow), 1); A.wind.f.frequency.setTargetAtTime(340 + 180 * Math.sin(T * 0.37) + 120 * M.snow, t, 0.5);
-    set(A.snow.g, dk * (0.016 + 0.01 * Math.sin(T * 0.17)) * M.snow, 1);
-  }
-  /* ---- Nepal map: an outline drawn from coordinates, the journey's stops from Sarlahi in the south to the Himalaya in the north,
-     a moving dot that follows the walk, and a larger modal on click ---- */
-  mapData() {
-    var s = this; if (s.MAP) return s.MAP;
-    var outline = [[80.06, 28.95], [80.25, 29.45], [80.55, 29.95], [80.9, 30.25], [81.05, 30.1], [81.3, 30.15], [81.6, 30.4], [81.9, 30.3], [82.1, 30.1], [82.5, 29.9], [82.9, 29.6], [83.3, 29.3], [83.6, 29.2], [84.0, 29.3], [84.25, 28.9], [84.6, 28.7], [85.1, 28.6], [85.4, 28.3], [85.8, 28.3], [86.0, 27.95], [86.4, 28.1], [86.8, 28.1], [87.1, 27.85], [87.6, 27.85], [88.15, 27.9], [88.2, 27.4], [88.0, 26.95], [88.15, 26.6], [88.1, 26.35], [87.6, 26.4], [87.0, 26.45], [86.5, 26.55], [86.0, 26.65], [85.6, 26.75], [85.2, 26.75], [84.8, 27.0], [84.6, 27.3], [84.2, 27.4], [83.9, 27.4], [83.4, 27.4], [83.0, 27.45], [82.5, 27.7], [82.0, 27.9], [81.7, 28.1], [81.3, 28.15], [80.9, 28.4], [80.5, 28.65]];
-    var P = function (k) { return s.pinX(k); };
-    var stops = [
-      { w: P(0), ll: [85.55, 26.95], n: 'Sarlahi', d: 'Origin · Terai' }, { w: P(0) + 1100, ll: [85.45, 27.05], n: 'Village', d: 'Sarlahi' }, { w: P(0) + 2200, ll: [85.25, 27.15], n: 'Bagmati river', d: 'Terai' }, { w: P(0) + 3300, ll: [84.45, 27.55], n: 'Chitwan', d: 'National Park' }, { w: P(0) + 4950, ll: [83.28, 27.48], n: 'Lumbini', d: 'Birthplace of the Buddha' },
-      { w: P(1), ll: [85.0, 27.45], n: 'Mahabharat hills', d: '2019' }, { w: P(2), ll: [85.29, 27.71], n: 'Swayambhunath', d: '2021' }, { w: P(3), ll: [85.32, 27.7], n: 'Kathmandu', d: 'Jan 2022' }, { w: P(4), ll: [85.32, 27.67], n: 'Patan', d: 'Jun 2022' }, { w: P(5), ll: [85.315, 27.708], n: 'Rani Pokhari', d: '2023' }, { w: P(6), ll: [85.32, 27.69], n: 'Dasarath Stadium', d: 'Oct 2023' }, { w: P(7), ll: [85.58, 27.58], n: 'Namobuddha', d: '2024' }, { w: P(8), ll: [85.33, 27.73], n: 'Herald College', d: 'Aug 2025' }, { w: P(9), ll: [86.0, 27.8], n: 'Kalinchowk', d: 'Now' }, { w: P(10), ll: [86.93, 27.99], n: 'Everest', d: 'Next' }];
-    s.MAP = { outline: outline, stops: stops, lon0: 80.0, lon1: 88.3, lat0: 26.3, lat1: 30.5 };
-    return s.MAP;
-  }
-  mapPos(cam) {
-    var s = this, M = s.mapData(), wx = cam + s.TX, S = M.stops;
-    if (wx <= S[0].w) return { ll: S[0].ll, i: 0, f: 0 };
-    for (var i = 0; i < S.length - 1; i++) if (wx < S[i + 1].w) { var f = (wx - S[i].w) / (S[i + 1].w - S[i].w); f = f * f * (3 - 2 * f); return { ll: [S[i].ll[0] + (S[i + 1].ll[0] - S[i].ll[0]) * f, S[i].ll[1] + (S[i + 1].ll[1] - S[i].ll[1]) * f], i: i, f: f }; }
-    return { ll: S[S.length - 1].ll, i: S.length - 1, f: 1 };
-  }
-  nepalMap(ctx, cam, T) {
-    var s = this, M = s.mapData(), big = s.state && s.state.mapBig, W = big ? 1010 : 160, px = big ? (s.VW - 1010) / 2 : s.VW - 184, py = big ? 180 + (s.VH - 900) / 2 : s.VH - 106;
-    var sc = W / (M.lon1 - M.lon0), scy = sc / 0.88, Hh = (M.lat1 - M.lat0) * scy, X = function (lon) { return px + (lon - M.lon0) * sc; }, Y = function (lat) { return py + (M.lat1 - lat) * scy; };
-    s.mapRect = big ? { x: px - 14, y: py - 30, w: W + 28, h: Hh + 44 } : { x: px - 8, y: py - 8, w: W + 16, h: Hh + 16 };
-    var acc = s.css(s.mix(s.hex('#98b9fb'), s.hex('#f4b961'), s.mode));
-    if (big) { ctx.fillStyle = 'rgba(6,12,20,.86)'; ctx.fillRect(0, 0, s.VW, s.VH); }
-    /* panel */
-    ctx.fillStyle = big ? 'rgba(10,18,30,.96)' : 'rgba(8,16,28,.62)'; ctx.strokeStyle = 'rgba(219,226,235,.18)'; ctx.lineWidth = 1;
-    var rr = function (x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); };
-    if (big) { rr(s.mapRect.x, s.mapRect.y, s.mapRect.w, s.mapRect.h + 60, 6); ctx.fill(); ctx.stroke(); ctx.font = '500 10.5px JetBrains Mono, monospace'; ctx.textAlign = 'left'; ctx.fillStyle = '#a3b3c6'; ctx.fillText('NEPAL · THE ROAD FROM SARLAHI TO THE HIMALAYA', px - 2, py - 12); }
-    /* the country: Terai green along the south, hills in the middle, snow along the north */
-    ctx.save(); ctx.beginPath(); M.outline.forEach(function (p, i) { if (i) ctx.lineTo(X(p[0]), Y(p[1])); else ctx.moveTo(X(p[0]), Y(p[1])); }); ctx.closePath(); ctx.clip();
-    ctx.fillStyle = '#3d6636'; ctx.fillRect(px - 10, py - 10, W + 20, Hh + 20);
-    var O = M.outline, top = O.slice(0, 29), bot = O.slice(28).concat([O[0]]), latAt = function (arr, lon, hiSide) { var best = null; for (var q = 0; q < arr.length - 1; q++) { var a = arr[q], b = arr[q + 1], lo = Math.min(a[0], b[0]), hi = Math.max(a[0], b[0]); if (lon >= lo && lon <= hi && hi > lo) { var f = (lon - a[0]) / (b[0] - a[0]); var v = a[1] + (b[1] - a[1]) * f; best = best == null ? v : (hiSide ? Math.max(best, v) : Math.min(best, v)); } } return best; };
-    var dl = big ? 0.025 : 0.08; for (var lon = M.lon0; lon < M.lon1; lon += dl) { var tl = latAt(top, lon + dl / 2, true), bl = latAt(bot, lon + dl / 2, false); if (tl == null) tl = latAt(bot, lon + dl / 2, true); if (bl == null) bl = latAt(top, lon + dl / 2, false); if (tl == null || bl == null) continue; if (bl > tl) { var tmp = tl; tl = bl; bl = tmp; } var g = ctx.createLinearGradient(0, Y(bl), 0, Y(tl)); g.addColorStop(0, '#4a8431'); g.addColorStop(0.28, '#467d30'); g.addColorStop(0.45, '#345a30'); g.addColorStop(0.72, '#5f6a80'); g.addColorStop(1, '#e4eaf2'); ctx.fillStyle = g; ctx.fillRect(Math.floor(X(lon)) - 1, Y(tl) - 2, Math.ceil(dl * sc) + 3, Y(bl) - Y(tl) + 4); }
-    /* a few ridge lines across the hills */
-    ctx.strokeStyle = 'rgba(255,255,255,.08)'; ctx.lineWidth = 1; for (var r = 0; r < 5; r++) { ctx.beginPath(); for (var lon = M.lon0; lon <= M.lon1; lon += 0.1) { var lat = 27.4 + r * 0.55 + 0.25 * Math.sin(lon * 2.1 + r) + (lon - 80) * 0.26 - (lon > 85 ? (lon - 85) * 0.55 : 0); var xx = X(lon), yy = Y(lat); if (lon === M.lon0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy); } ctx.stroke(); }
-    ctx.restore();
-    ctx.beginPath(); M.outline.forEach(function (p, i) { if (i) ctx.lineTo(X(p[0]), Y(p[1])); else ctx.moveTo(X(p[0]), Y(p[1])); }); ctx.closePath(); ctx.strokeStyle = 'rgba(219,226,235,.7)'; ctx.lineWidth = big ? 1.5 : 1; ctx.stroke();
-    /* route */
-    var pos = s.mapPos(cam), S = M.stops, wx = cam + s.TX;
-    ctx.setLineDash([3, 4]); ctx.strokeStyle = 'rgba(219,226,235,.35)'; ctx.lineWidth = 1; ctx.beginPath(); S.forEach(function (st, i) { var x = X(st.ll[0]), y = Y(st.ll[1]); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }); ctx.stroke(); ctx.setLineDash([]);
-    ctx.strokeStyle = acc; ctx.lineWidth = big ? 2.5 : 2; ctx.beginPath(); for (var i = 0; i <= pos.i; i++) { var x = X(S[i].ll[0]), y = Y(S[i].ll[1]); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); } ctx.lineTo(X(pos.ll[0]), Y(pos.ll[1])); ctx.stroke();
-    S.forEach(function (st, i) { var x = X(st.ll[0]), y = Y(st.ll[1]), done = wx >= st.w - 30, rad = big ? 4.5 : 1.8; ctx.beginPath(); ctx.arc(x, y, rad, 0, 6.283); ctx.fillStyle = done ? acc : 'rgba(10,18,30,.9)'; ctx.fill(); ctx.strokeStyle = done ? acc : 'rgba(219,226,235,.6)'; ctx.lineWidth = 1; ctx.stroke();
-      if (big && [0, 3, 4, 10, 12, 13].indexOf(i) >= 0) { ctx.font = (done ? '600 ' : '500 ') + '11px Inter, sans-serif'; ctx.fillStyle = done ? '#ffffff' : '#a3b3c6'; var off = [[0, 18], [0, -14], [14, 4], [-14, 4], [0, -14], [14, 4], [-14, 4], [-14, 14], [14, -6], [14, 10], [14, 4], [-14, -8], [0, -14], [0, -14]][i]; ctx.textAlign = off[0] > 0 ? 'left' : off[0] < 0 ? 'right' : 'center'; var tw = ctx.measureText(st.n).width, lx0 = ctx.textAlign === 'left' ? x + off[0] : ctx.textAlign === 'right' ? x + off[0] - tw : x - tw / 2; if (lx0 < px + 4) { ctx.textAlign = 'left'; off = [px + 4 - x, off[1]]; } if (lx0 + tw > px + W - 4) { ctx.textAlign = 'right'; off = [px + W - 4 - x, off[1]]; } ctx.fillText(st.n, x + off[0], y + off[1]); ctx.font = '500 9.5px JetBrains Mono, monospace'; ctx.fillStyle = 'rgba(163,179,198,.9)'; ctx.fillText(st.d, x + off[0], y + off[1] + 12); } });
-    if (big) { /* Kathmandu valley inset: the stops that sit within a few kilometres of each other */
-      var ix = px + 250, iy = py + Hh - 110, ir = 125, clon = 85.43, clat = 27.675, isc = ir / 0.21, iscy = isc / 0.88, IX = function (lon) { return ix + (lon - clon) * isc; }, IY = function (lat) { return iy - (lat - clat) * iscy; };
-      ctx.beginPath(); ctx.arc(ix, iy, ir, 0, 6.283); ctx.fillStyle = 'rgba(14,24,40,.96)'; ctx.fill(); ctx.strokeStyle = 'rgba(219,226,235,.4)'; ctx.lineWidth = 1; ctx.stroke();
-      ctx.save(); ctx.beginPath(); ctx.arc(ix, iy, ir, 0, 6.283); ctx.clip(); ctx.fillStyle = 'rgba(70,120,60,.35)'; ctx.beginPath(); ctx.ellipse(ix + 4, iy + 6, ir * 0.78, ir * 0.55, -0.2, 0, 6.283); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,.1)'; for (var rr2 = 0; rr2 < 3; rr2++) { ctx.beginPath(); ctx.ellipse(ix + 4, iy + 6, ir * (0.82 + rr2 * 0.08), ir * (0.6 + rr2 * 0.07), -0.2, 0, 6.283); ctx.stroke(); } ctx.restore();
-      ctx.beginPath(); ctx.moveTo(X(85.4), Y(27.67)); ctx.lineTo(ix + ir * 0.7, iy - ir * 0.7); ctx.strokeStyle = 'rgba(219,226,235,.25)'; ctx.setLineDash([2, 4]); ctx.stroke(); ctx.setLineDash([]);
-      ctx.font = '500 10px JetBrains Mono, monospace'; ctx.textAlign = 'center'; ctx.fillStyle = '#a3b3c6'; ctx.fillText('KATHMANDU VALLEY', ix, iy - ir + 18);
-      var VI = [5, 6, 7, 8, 9, 10, 11], voff = { 5: [-12, 4], 6: [-12, 14], 7: [0, 18], 8: [12, -4], 9: [12, 10], 10: [0, 18], 11: [0, -14] };
-      ctx.strokeStyle = 'rgba(219,226,235,.35)'; ctx.setLineDash([3, 4]); ctx.beginPath(); VI.forEach(function (k, q) { var x = IX(S[k].ll[0]), y = IY(S[k].ll[1]); if (q) ctx.lineTo(x, y); else ctx.moveTo(x, y); }); ctx.stroke(); ctx.setLineDash([]);
-      ctx.strokeStyle = acc; ctx.lineWidth = 2; ctx.beginPath(); var drew = false; VI.forEach(function (k) { if (k > pos.i) return; var x = IX(S[k].ll[0]), y = IY(S[k].ll[1]); if (drew) ctx.lineTo(x, y); else ctx.moveTo(x, y); drew = true; }); if (drew && pos.i >= 5 && pos.i < 12) ctx.lineTo(IX(pos.ll[0]), IY(pos.ll[1])); if (drew) ctx.stroke();
-      VI.forEach(function (k) { var st = S[k], x = IX(st.ll[0]), y = IY(st.ll[1]), done = wx >= st.w - 30, o = voff[k]; ctx.beginPath(); ctx.arc(x, y, 4.5, 0, 6.283); ctx.fillStyle = done ? acc : 'rgba(10,18,30,.9)'; ctx.fill(); ctx.strokeStyle = done ? acc : 'rgba(219,226,235,.6)'; ctx.lineWidth = 1; ctx.stroke(); ctx.font = (done ? '600 ' : '500 ') + '11px Inter, sans-serif'; ctx.fillStyle = done ? '#ffffff' : '#a3b3c6'; ctx.textAlign = o[0] > 0 ? 'left' : o[0] < 0 ? 'right' : 'center'; ctx.fillText(st.n, x + o[0], y + o[1]); ctx.font = '500 9.5px JetBrains Mono, monospace'; ctx.fillStyle = 'rgba(163,179,198,.9)'; ctx.fillText(st.d, x + o[0], y + o[1] + 12); });
-      if (pos.i >= 4 && pos.i < 12) { var vx = IX(pos.ll[0]), vy = IY(pos.ll[1]), pv = 0.5 + 0.5 * Math.sin(T * 4); ctx.beginPath(); ctx.arc(vx, vy, 9 + pv * 4, 0, 6.283); ctx.fillStyle = s.css(s.mix(s.hex('#98b9fb'), s.hex('#f4b961'), s.mode), 0.2); ctx.fill(); ctx.beginPath(); ctx.arc(vx, vy, 5, 0, 6.283); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = acc; ctx.lineWidth = 2; ctx.stroke(); }
-      ctx.textAlign = 'left';
-    }
-    /* the traveller's dot */
-    var dx = X(pos.ll[0]), dy = Y(pos.ll[1]), pulse = 0.5 + 0.5 * Math.sin(T * 4);
-    ctx.beginPath(); ctx.arc(dx, dy, (big ? 10 : 5) + pulse * 3, 0, 6.283); ctx.fillStyle = s.css(s.mix(s.hex('#98b9fb'), s.hex('#f4b961'), s.mode), 0.18 + 0.12 * pulse); ctx.fill();
-    ctx.beginPath(); ctx.arc(dx, dy, big ? 5 : 2.6, 0, 6.283); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = acc; ctx.lineWidth = 2; ctx.stroke();
-    if (big) { var cur = S[Math.min(S.length - 1, pos.f > 0.5 ? pos.i + 1 : pos.i)], fy = py + Hh + 26, pct = Math.min(100, Math.round(100 * (pos.i + pos.f) / (S.length - 1))); ctx.textAlign = 'left'; ctx.font = '500 11px JetBrains Mono, monospace'; ctx.fillStyle = '#a3b3c6'; ctx.fillText('YOU ARE NEAR', px + 420, fy); ctx.font = '600 22px Inter, sans-serif'; ctx.fillStyle = '#ffffff'; ctx.fillText(cur.n + '  ·  ' + cur.d, px + 420, fy + 26); ctx.textAlign = 'right'; ctx.font = '500 11px JetBrains Mono, monospace'; ctx.fillStyle = 'rgba(163,179,198,.85)'; ctx.fillText(pct + '% OF THE WAY  ·  HEADING ' + (pos.i < 4 ? 'NW' : pos.i < 12 ? 'N' : 'NE'), px + W, fy + 26); ctx.textAlign = 'left';
-      /* compass rose, top right */
-      var cxr = px + W - 44, cyr = py + 44; ctx.save(); ctx.strokeStyle = 'rgba(219,226,235,.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cxr, cyr, 30, 0, 6.283); ctx.stroke(); ctx.beginPath(); ctx.arc(cxr, cyr, 3, 0, 6.283); ctx.fillStyle = acc; ctx.fill(); [[0, -1, 'N'], [1, 0, 'E'], [0, 1, 'S'], [-1, 0, 'W']].forEach(function (d) { ctx.beginPath(); ctx.moveTo(cxr + d[0] * 6 * -1 * d[1] + d[1] * 0, cyr); ctx.closePath(); ctx.font = '600 10px JetBrains Mono, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = d[2] === 'N' ? '#ffffff' : '#a3b3c6'; ctx.fillText(d[2], cxr + d[0] * 40, cyr + d[1] * 40); }); ctx.beginPath(); ctx.moveTo(cxr, cyr - 26); ctx.lineTo(cxr + 6, cyr); ctx.lineTo(cxr, cyr + 26); ctx.lineTo(cxr - 6, cyr); ctx.closePath(); ctx.fillStyle = 'rgba(219,226,235,.25)'; ctx.fill(); ctx.beginPath(); ctx.moveTo(cxr, cyr - 26); ctx.lineTo(cxr + 6, cyr); ctx.lineTo(cxr - 6, cyr); ctx.closePath(); ctx.fillStyle = acc; ctx.fill(); ctx.textBaseline = 'alphabetic'; ctx.restore(); }
+  audioOn() { var s = this; s.sndPref = true; s.setState({ snd: true }); var A = s.audioInit(); if (!A) return; if (A.ctx.state === 'suspended') A.ctx.resume(); A.muted = false; A.master.gain.setTargetAtTime(1, A.ctx.currentTime, 0.15); }
+  audioOff() { var s = this; s.sndPref = false; s.setState({ snd: false }); if (!s.au) return; s.au.muted = true; s.au.master.gain.setTargetAtTime(0, s.au.ctx.currentTime, 0.1); }
+  /* short synthesised cues, quiet and only once sound is running after a gesture: a bus horn, a truck horn, applause, a milestone chime, key taps */
+  cue(n) {
+    var s = this, A = s.au; if (!A || A.muted || A.ctx.state !== 'running') return;
+    var c = A.ctx, t0 = c.currentTime + 0.03, lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = n === 'horn' || n === 'truck' ? 1500 : 6000; lp.connect(A.master);
+    var tone = function (f, type, at, dur, g) { var o = c.createOscillator(), e = c.createGain(); o.type = type; o.frequency.value = f; e.gain.setValueAtTime(0.0001, at); e.gain.exponentialRampToValueAtTime(g, at + 0.02); e.gain.setValueAtTime(g, at + dur * 0.6); e.gain.exponentialRampToValueAtTime(0.0001, at + dur); o.connect(e); e.connect(lp); o.start(at); o.stop(at + dur + 0.05); };
+    var tap = function (at, dur, g, f) { var b = c.createBufferSource(), bf = c.createBiquadFilter(), e = c.createGain(); b.buffer = A.nb; bf.type = 'bandpass'; bf.frequency.value = f; bf.Q.value = 1.4; e.gain.setValueAtTime(g, at); e.gain.exponentialRampToValueAtTime(0.0001, at + dur); b.connect(bf); bf.connect(e); e.connect(lp); b.start(at, Math.random() * 2, dur + 0.02); };
+    if (n === 'horn') [0, 0.38].forEach(function (d) { tone(392, 'sawtooth', t0 + d, 0.28, 0.035); tone(494, 'sawtooth', t0 + d, 0.28, 0.028); });
+    if (n === 'truck') { tone(147, 'sawtooth', t0, 0.95, 0.05); tone(185, 'sawtooth', t0, 0.95, 0.04); }
+    if (n === 'chime') { tone(1046.5, 'sine', t0, 1.4, 0.05); tone(1568, 'sine', t0 + 0.09, 1.2, 0.035); }
+    if (n === 'applause') for (var i = 0; i < 170; i++) { var at = t0 + Math.pow(Math.random(), 0.8) * 2.8; tap(at, 0.03, 0.09 * (1 - (at - t0) / 3.2), 1300 + Math.random() * 1900); }
+    if (n === 'tick') tap(t0, 0.025, 0.05, 2600 + Math.random() * 1600);
   }
   buildTrek(T3) {
     /* trekking paths switchbacking up the high slopes behind the trail, with cairns, flag poles at the passes,
@@ -921,10 +958,11 @@ export class JourneyEngine {
     ribbon(function (a) { return -hw(a) + 0.25; }, function (a) { return -hw(a) + 0.42; }, 0.17, function () { return white; }, lineOnly);
     ribbon(function (a) { return hw(a) - 0.42; }, function (a) { return hw(a) - 0.25; }, 0.17, function () { return white; }, lineOnly);
     ribbon(function () { return -0.09; }, function () { return 0.09; }, 0.17, function () { return white; }, function (xx, a) { return lineOnly(xx, a) || Math.floor(xx / 2.2) % 2 === 1; });
-    var posts = []; for (var mp = 6; mp < s.SW; mp += 12) { var Zp = s.zones(mp), ap = Math.max(Zp.T, Zp.V); if (ap < 0.6 || river(mp)) continue; posts.push([mp, s.roadH(mp), -hw(ap) - 0.9]); posts.push([mp, s.roadH(mp), hw(ap) + 0.9]); }
+    var nearStop = function (xx, r) { for (var k = 0; k < s.NM; k++) if (Math.abs(xx - s.pinX(k) * s.SC) < r) return true; return false; };
+    var posts = []; for (var mp = 6; mp < s.SW; mp += 12) { var Zp = s.zones(mp), ap = Math.max(Zp.T, Zp.V); if (ap < 0.6 || river(mp) || nearStop(mp, 14)) continue; posts.push([mp, s.roadH(mp), -hw(ap) - 0.9]); posts.push([mp, s.roadH(mp), hw(ap) + 0.9]); }
     s.inst(T3, s.merge(T3, [{ geo: new T3.BoxGeometry(0.16, 0.7, 0.16), c: s.lin('#f2f2f2'), y: 0.35 }, { geo: new T3.BoxGeometry(0.17, 0.18, 0.17), c: s.lin('#1a1a1a'), y: 0.62 }]), posts, function (p, i, d) { d.position.set(p[0], p[1] + 0.1, p[2]); });
     /* street lights along the highway, behind the road edge */
-    for (var lx = 8; lx < s.SW; lx += 16) { var Zl = s.zones(lx); if (Math.max(Zl.T, Zl.V) < 0.6 || Math.abs(lx - s.rivX(0, 0)) < 18) continue; lamps.push([lx, s.roadH(lx), -4.6]); }
+    for (var lx = 8; lx < s.SW; lx += 16) { var Zl = s.zones(lx); if (Math.max(Zl.T, Zl.V) < 0.6 || Math.abs(lx - s.rivX(0, 0)) < 18 || nearStop(lx, 14)) continue; lamps.push([lx, s.roadH(lx), -4.6]); }
     var poleG = s.merge(T3, [{ geo: new T3.CylinderGeometry(0.09, 0.13, 7, 7), c: s.lin('#8a8f96'), y: 3.5 }, { geo: new T3.CylinderGeometry(0.07, 0.07, 2.2, 6), c: s.lin('#8a8f96'), y: 6.9, z: 1.0, rx: Math.PI / 2 - 0.25 }]);
     s.inst(T3, poleG, lamps, function (p, i, d) { d.position.set(p[0], p[1], p[2]); });
     s.lampM = new T3.MeshStandardMaterial({ color: 0xfff3d0, emissive: 0xffd48a, emissiveIntensity: 0.15, roughness: 0.4 });
@@ -933,8 +971,346 @@ export class JourneyEngine {
     s.lampPts = lamps; var poolG = new T3.PlaneGeometry(1, 1); poolG.rotateX(-Math.PI / 2); s.lampPool = new T3.InstancedMesh(poolG, new T3.MeshBasicMaterial({ map: s.glowTex(T3), transparent: true, depthWrite: false, opacity: 0, color: 0xffd48a, blending: T3.AdditiveBlending }), lamps.length); lamps.forEach(function (p, i) { gd.position.set(p[0], p[1] + 0.22, p[2] + 3.6); gd.scale.set(13, 1, 9); gd.updateMatrix(); s.lampPool.setMatrixAt(i, gd.matrix); }); s.lampPool.instanceMatrix.needsUpdate = true; s.scene.add(s.lampPool);
     s.lampSpots = []; for (var ls = 0; ls < 3; ls++) { var sp0 = new T3.SpotLight(0xffd9a0, 0, 40, 0.9, 0.7, 1.2); s.scene.add(sp0); s.scene.add(sp0.target); s.lampSpots.push(sp0); }
     var pin = new T3.SphereGeometry(0.36, 10, 8), pm = new T3.MeshStandardMaterial({ color: 0xffffff, emissive: 0xf4b961, emissiveIntensity: 0.6 });
-    s.pinM = []; for (var k = 0; k < s.NM; k++) { var px = s.pinX(k) * s.SC, py = s.roadH(px); var m = new T3.Mesh(pin, pm.clone()); m.position.set(px, py + 3.2, 0); s.scene.add(m); var pole = new T3.Mesh(new T3.CylinderGeometry(0.06, 0.06, 2.8, 6), new T3.MeshStandardMaterial({ color: 0xeeeeee })); pole.position.set(px, py + 1.6, 0); s.scene.add(pole); s.pinM.push(m); }
+    s.pinM = []; s.pinP = []; for (var k = 0; k < s.NM; k++) { var px = s.pinX(k) * s.SC, py = s.roadH(px); var m = new T3.Mesh(pin, pm.clone()); m.position.set(px, py + 3.2, 0); s.scene.add(m); var pole = new T3.Mesh(new T3.CylinderGeometry(0.06, 0.06, 2.8, 6), new T3.MeshStandardMaterial({ color: 0xeeeeee })); pole.position.set(px, py + 1.6, 0); s.scene.add(pole); s.pinM.push(m); s.pinP.push(pole); }
     s.buildWalker(T3);
+  }
+  /* ---- surfaces painted once on canvases and tiled in world units: stained plaster, brick, corrugated tin, asphalt, dirt, concrete, planks,
+     curtain velvet; a sky environment for glass and paint reflections; a material factory whose plain surfaces can be merged per scene ---- */
+  texLib(T3) {
+    var s = this; if (s.TXL) return s.TXL;
+    var R = function (i, k) { return s.h2(i, k); };
+    var mk = function (w, h, draw) { var c = document.createElement('canvas'); c.width = w; c.height = h; var g = c.getContext('2d'); draw(g, w, h); var t = new T3.CanvasTexture(c); t.colorSpace = T3.SRGBColorSpace; t.wrapS = t.wrapT = T3.RepeatWrapping; t.anisotropy = 8; return t; };
+    var wrap = function (g, w, h, x, y, r, fn) { for (var dx = -1; dx <= 1; dx++) for (var dy = -1; dy <= 1; dy++) { var X = x + dx * w, Y = y + dy * h; if (X + r < 0 || X - r > w || Y + r < 0 || Y - r > h) continue; fn(X, Y); } };
+    var blot = function (g, w, h, n, seed, rgb, a0, a1, r0, r1) { for (var i = 0; i < n; i++) { var x = R(i, seed) * w, y = R(i, seed + 1) * h, r = r0 + R(i, seed + 2) * (r1 - r0), a = a0 + R(i, seed + 3) * (a1 - a0); wrap(g, w, h, x, y, r, function (X, Y) { var gr = g.createRadialGradient(X, Y, 0, X, Y, r); gr.addColorStop(0, 'rgba(' + rgb + ',' + a.toFixed(3) + ')'); gr.addColorStop(1, 'rgba(' + rgb + ',0)'); g.fillStyle = gr; g.fillRect(X - r, Y - r, r * 2, r * 2); }); } };
+    var grain = function (g, w, h, n, seed, a) { for (var i = 0; i < n; i++) { var v = R(i, seed + 4) > 0.5 ? 255 : 0; g.fillStyle = 'rgba(' + v + ',' + v + ',' + v + ',' + (a * R(i, seed + 3)).toFixed(3) + ')'; g.fillRect(R(i, seed) * w, R(i, seed + 1) * h, 1 + R(i, seed + 2) * 2, 1 + R(i, seed + 5) * 2); } };
+    var crack = function (g, w, h, n, seed, a) { g.lineWidth = 1; for (var i = 0; i < n; i++) { var x = R(i, seed) * w, y = R(i, seed + 1) * h; g.strokeStyle = 'rgba(40,32,24,' + a + ')'; g.beginPath(); g.moveTo(x, y); for (var k = 0; k < 9; k++) { x += (R(i * 9 + k, seed + 2) - 0.5) * 22; y += 6 + R(i * 9 + k, seed + 3) * 10; g.lineTo(x, y); } g.stroke(); } };
+    var T = {};
+    T.plaster = mk(512, 512, function (g, w, h) { g.fillStyle = '#ecE9e2'; g.fillRect(0, 0, w, h); blot(g, w, h, 46, 11, '120,108,90', 0.03, 0.09, 30, 110); blot(g, w, h, 24, 17, '255,255,250', 0.05, 0.12, 30, 90); grain(g, w, h, 14000, 23, 0.07);
+      for (var i = 0; i < 18; i++) { var x = R(i, 31) * w, y = R(i, 32) * h, l = 40 + R(i, 33) * 170, gr = g.createLinearGradient(0, y, 0, y + l); gr.addColorStop(0, 'rgba(96,84,66,0.10)'); gr.addColorStop(1, 'rgba(96,84,66,0)'); g.fillStyle = gr; g.fillRect(x, y, 2 + R(i, 34) * 7, l); } crack(g, w, h, 5, 41, 0.18); });
+    T.brick = mk(512, 512, function (g, w, h) { g.fillStyle = '#b7aa96'; g.fillRect(0, 0, w, h); var rows = 20, cols = 6, bh = h / rows, bw = w / cols;
+      for (var r = 0; r < rows; r++) for (var c = -1; c < cols; c++) { var x = c * bw + (r % 2) * bw / 2, k = r * 13 + c + 7, l = 0.82 + R(k, 51) * 0.3; g.fillStyle = 'rgb(' + Math.round(150 * l) + ',' + Math.round(74 * l) + ',' + Math.round(52 * l) + ')'; g.fillRect(x + 3, r * bh + 3, bw - 6, bh - 6); g.fillStyle = 'rgba(0,0,0,' + (0.08 * R(k, 52)).toFixed(3) + ')'; g.fillRect(x + 3, r * bh + bh * 0.55, bw - 6, bh * 0.45 - 3); }
+      grain(g, w, h, 9000, 61, 0.12); blot(g, w, h, 16, 71, '60,40,30', 0.04, 0.12, 30, 100); });
+    T.tin = mk(256, 256, function (g, w, h) { for (var x = 0; x < w; x++) { var v = 0.5 + 0.5 * Math.sin(x / w * Math.PI * 2 * 16), c = Math.round(150 + 90 * v); g.fillStyle = 'rgb(' + c + ',' + c + ',' + c + ')'; g.fillRect(x, 0, 1, h); }
+      for (var i = 0; i < 26; i++) { var x0 = R(i, 81) * w, y0 = R(i, 82) * h, l = 30 + R(i, 83) * 120, gr = g.createLinearGradient(0, y0, 0, y0 + l); gr.addColorStop(0, 'rgba(120,62,26,' + (0.18 + R(i, 84) * 0.25).toFixed(2) + ')'); gr.addColorStop(1, 'rgba(120,62,26,0)'); g.fillStyle = gr; g.fillRect(x0, y0, 3 + R(i, 85) * 8, l); } grain(g, w, h, 3000, 87, 0.12); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, 0, w, 3); });
+    T.asphalt = mk(512, 512, function (g, w, h) { g.fillStyle = '#5b5e63'; g.fillRect(0, 0, w, h); grain(g, w, h, 30000, 91, 0.22); blot(g, w, h, 24, 93, '30,30,32', 0.08, 0.2, 30, 120); blot(g, w, h, 10, 97, '150,150,150', 0.05, 0.1, 20, 70); crack(g, w, h, 6, 99, 0.35); });
+    T.dirt = mk(512, 512, function (g, w, h) { g.fillStyle = '#b39773'; g.fillRect(0, 0, w, h); blot(g, w, h, 40, 101, '120,92,60', 0.08, 0.2, 30, 120); blot(g, w, h, 30, 103, '214,196,160', 0.06, 0.16, 20, 80); grain(g, w, h, 26000, 107, 0.2);
+      for (var i = 0; i < 420; i++) { var c = 110 + Math.round(R(i, 109) * 90); g.fillStyle = 'rgba(' + c + ',' + (c - 12) + ',' + (c - 30) + ',0.8)'; g.beginPath(); g.ellipse(R(i, 111) * w, R(i, 112) * h, 1 + R(i, 113) * 3, 1 + R(i, 114) * 2, R(i, 115) * 3, 0, 6.283); g.fill(); } });
+    T.concrete = mk(512, 512, function (g, w, h) { g.fillStyle = '#c4c3bd'; g.fillRect(0, 0, w, h); blot(g, w, h, 30, 121, '90,90,86', 0.04, 0.1, 30, 120); grain(g, w, h, 16000, 123, 0.1); g.strokeStyle = 'rgba(70,70,66,0.25)'; g.lineWidth = 2; for (var x = 0; x <= w; x += 128) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); } for (var y = 0; y <= h; y += 128) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); } });
+    T.wood = mk(512, 512, function (g, w, h) { var n = 8, ph = h / n; for (var r = 0; r < n; r++) { var l = 0.85 + R(r, 131) * 0.25; g.fillStyle = 'rgb(' + Math.round(150 * l) + ',' + Math.round(104 * l) + ',' + Math.round(66 * l) + ')'; g.fillRect(0, r * ph, w, ph); for (var k = 0; k < 26; k++) { g.strokeStyle = 'rgba(70,44,22,' + (0.08 + R(r * 40 + k, 133) * 0.14).toFixed(2) + ')'; g.lineWidth = 1 + R(r * 40 + k, 134); var y = r * ph + R(r * 40 + k, 135) * ph; g.beginPath(); g.moveTo(0, y); g.bezierCurveTo(w * 0.3, y + 3, w * 0.6, y - 3, w, y); g.stroke(); } g.fillStyle = 'rgba(30,18,8,0.5)'; g.fillRect(0, r * ph, w, 2); g.fillRect((R(r, 137) * w) | 0, r * ph, 2, ph); } });
+    T.velvet = mk(256, 256, function (g, w, h) { for (var x = 0; x < w; x++) { var v = 0.5 + 0.5 * Math.sin(x / w * Math.PI * 2 * 7 + Math.sin(x * 0.07) * 0.8), c = Math.round(110 + 120 * v); g.fillStyle = 'rgb(' + c + ',' + Math.round(c * 0.92) + ',' + Math.round(c * 0.92) + ')'; g.fillRect(x, 0, 1, h); } grain(g, w, h, 2000, 141, 0.08); });
+    T.tile = { plaster: 3.2, brick: 2.2, tin: 2.6, asphalt: 7, dirt: 6, concrete: 4, wood: 2.4, velvet: 3 };
+    s.TXL = T; return T;
+  }
+  /* a sky-and-ground gradient baked into a PMREM so glass and paint pick up soft reflections */
+  envTex(T3) {
+    var s = this; if (s.ENV) return s.ENV;
+    var sc = new T3.Scene(), m = new T3.ShaderMaterial({ side: T3.BackSide, vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+      fragmentShader: 'varying vec3 vP; void main(){ float y = normalize(vP).y; vec3 top = vec3(0.24,0.45,0.8), hz = vec3(0.86,0.9,0.95), gr = vec3(0.32,0.34,0.3); vec3 c = y > 0.0 ? mix(hz, top, pow(y, 0.55)) : mix(hz, gr, pow(-y, 0.4)); gl_FragColor = vec4(c, 1.0); }' });
+    sc.add(new T3.Mesh(new T3.SphereGeometry(100, 32, 16), m));
+    var pm = new T3.PMREMGenerator(s.R); s.ENV = pm.fromScene(sc, 0, 1, 300).texture; pm.dispose(); m.dispose(); return s.ENV;
+  }
+  /* materials for the story scenes. Plain ones carry a merge key; bakeGroup folds their colour into vertex colours and draws each key once */
+  surf(T3, col, o) {
+    var s = this; o = o || {}; var TX = s.texLib(T3), k = o.k == null ? 0.3 : o.k, key = [k, o.r == null ? 0.85 : o.r, o.m || 0, o.map || '', o.bump || 0, o.env || 0, o.side || 0, o.glow || 0].join('|'), ck = key + '#' + col;
+    s._sf = s._sf || {}; if (s._sf[ck]) return s._sf[ck];
+    var props = function (c, vc) { var p = { color: c, roughness: o.r == null ? 0.85 : o.r, metalness: o.m || 0, vertexColors: vc }; if (o.map) p.map = TX[o.map]; if (o.bump) { p.bumpMap = TX[o.map]; p.bumpScale = o.bump; } if (o.env) { p.envMap = s.envTex(T3); p.envMapIntensity = o.env; } if (o.side) p.side = T3.DoubleSide; return p; };
+    var mk = function (c, vc) { var m = s.moonMat(k, props(c, vc), 0xffe6c0); if (o.env) { m.userData.env = o.env; (s.envMats = s.envMats || []).push(m); } return m; };
+    var m = mk(col, false); m.userData.mk = key; m.userData.tile = o.tile || (o.map && TX.tile[o.map]) || 3;
+    m.userData.vc = function () { s._vc = s._vc || {}; return s._vc[key] || (s._vc[key] = mk(0xffffff, true)); };
+    s._sf[ck] = m; return m;
+  }
+  /* a box whose UVs are scaled to world units, so a texture tiles at the same size on every wall */
+  tbox(T3, w, h, d, tile) { var g = new T3.BoxGeometry(w, h, d), uv = g.attributes.uv, dims = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]]; for (var f = 0; f < 6; f++) for (var v = 0; v < 4; v++) { var i = f * 4 + v; uv.setXY(i, uv.getX(i) * dims[f][0] / tile, uv.getY(i) * dims[f][1] / tile); } return g; }
+  /* fold a scene group's plain meshes into one mesh per surface type; animated sub-groups, signs, screens and glows are left alone */
+  bakeGroup(T3, grp) {
+    var B = {}; grp.updateMatrixWorld(true);
+    grp.children.slice().forEach(function (m) {
+      var mt = m.material; if (!m.isMesh || m.isInstancedMesh || Array.isArray(mt) || !mt || !mt.userData.mk) return;
+      var g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone(); g.applyMatrix4(m.matrix);
+      Object.keys(g.attributes).forEach(function (a) { if (a !== 'position' && a !== 'normal' && a !== 'uv') g.deleteAttribute(a); });
+      var n = g.attributes.position.count; if (!g.attributes.uv) g.setAttribute('uv', new T3.Float32BufferAttribute(new Float32Array(n * 2), 2));
+      var col = new Float32Array(n * 3), c = mt.color; for (var i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; } g.setAttribute('color', new T3.BufferAttribute(col, 3));
+      var key = mt.userData.mk + (m.castShadow ? '|s' : ''); (B[key] = B[key] || { mt: mt, list: [], sh: m.castShadow }).list.push(g); grp.remove(m);
+    });
+    Object.keys(B).forEach(function (k) { var b = B[k], mesh = new T3.Mesh(mergeGeometries(b.list), b.mt.userData.vc()); mesh.castShadow = b.sh; mesh.receiveShadow = true; grp.add(mesh); });
+  }
+  /* ---- one scene per portfolio event, modelled on the real places: the Terai school at morning assembly, Uniglobe's college block in Kamaladi
+     with its court and buses, the Herald campus, the remote home desk, the PortPro office over a drayage yard, the scholarship stage, the
+     graduation, the final-year project lab and the orchestrator agent over his workstation. Each scene is one group, merged per surface and
+     hidden when the walk is far from it. s.SPOT says where he stands or sits at each. ---- */
+  buildStory(T3) {
+    var s = this, L = s.lin.bind(s), box = new T3.BoxGeometry(1, 1, 1), cyl = new T3.CylinderGeometry(1, 1, 1, 18), sph = new T3.SphereGeometry(1, 16, 12), DEV = "'Noto Sans Devanagari', 'Kohinoor Devanagari', 'Devanagari Sangam MN', sans-serif";
+    var P = function (k) { return s.pinX(k) * s.SC; }, H = s.H.bind(s), SPOT = s.SPOT = {}, G = null, i, r, c; s.SG = [];
+    var span = function (x, z, w, d) { var lo = 1e9, hi = -1e9; for (var a = -1; a <= 1; a += 0.5) for (var b = -1; b <= 1; b += 0.5) { var y = H(x + a * w / 2, z + b * d / 2); lo = Math.min(lo, y); hi = Math.max(hi, y); } return [lo, hi]; };
+    var S = function (col, o) { return s.surf(T3, col, o); };
+    var put = function (geo, m, x, y, z, ry, sh, rx, rz) { var me = new T3.Mesh(geo, m); me.position.set(x, y, z); me.rotation.set(rx || 0, ry || 0, rz || 0); me.castShadow = sh !== false; me.receiveShadow = true; G.add(me); return me; };
+    var B = function (w, h, d, m, x, y, z, ry, sh) { return put(s.tbox(T3, w, h, d, m.userData.tile || 3), m, x, y, z, ry, sh); };
+    var Cy = function (rt, rb, h, m, x, y, z, seg, sh) { return put(new T3.CylinderGeometry(rt, rb, h, seg || 14), m, x, y, z, 0, sh); };
+    var Sp = function (sx, sy, sz, m, x, y, z) { var me = put(sph, m, x, y, z); me.scale.set(sx, sy, sz); return me; };
+    var scene = function (x) { G = new T3.Group(); G.userData.x = x; s.scene.add(G); s.SG.push(G); };
+    var done = function () { s.bakeGroup(T3, G); };
+    var plaster = function (c0) { return S(c0, { map: 'plaster' }); }, brick = S(0xffffff, { map: 'brick', bump: 1.2 }), tin = function (c0) { return S(c0, { map: 'tin', bump: 2, r: 0.5, m: 0.35, k: 0.18 }); };
+    var asphalt = S(0xffffff, { map: 'asphalt', r: 0.95 }), dirt = S(0xffffff, { map: 'dirt', r: 1 }), concrete = function (c0) { return S(c0 || 0xffffff, { map: 'concrete' }); }, wood = function (c0) { return S(c0 || 0xffffff, { map: 'wood', r: 0.65 }); };
+    var velvet = function (c0) { return S(c0, { map: 'velvet', r: 0.95 }); }, paint = function (c0, r0) { return S(c0, { r: r0 == null ? 0.6 : r0 }); };
+    var glass = S(0x2a3846, { r: 0.05, m: 0.9, env: 1.2, k: 0.05 }), metal = function (c0) { return S(c0, { r: 0.32, m: 0.85, env: 0.7 }); }, carPaint = function (c0) { return S(c0, { r: 0.28, m: 0.25, env: 0.9 }); };
+    var dark = S(0x24272d, { r: 0.55, m: 0.4 }), tyre = S(0x1b1c1f, { r: 0.9 }), white = paint(0xf2f0ea), black = paint(0x1d1f24);
+    s.sWin = new T3.MeshStandardMaterial({ color: 0x33404f, roughness: 0.3, metalness: 0.3, emissive: 0xffc98a, emissiveIntensity: 0 });
+    var glowM = function (col, g0, g1) { var m = new T3.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: g0, roughness: 0.5 }); m.userData.g0 = g0; m.userData.g1 = g1; (s.sGlow = s.sGlow || []).push(m); return m; };
+    var tex = function (w, h, draw) { var cv = document.createElement('canvas'); cv.width = w; cv.height = h; draw(cv.getContext('2d'), w, h); var t = new T3.CanvasTexture(cv); t.colorSpace = T3.SRGBColorSpace; t.anisotropy = 8; return t; };
+    /* painted boards: each line shrinks until it fits, and is redrawn once the Devanagari webfont arrives */
+    var signTex = function (w, h, bg, lines, border) { var cv = document.createElement('canvas'); cv.width = w; cv.height = h; var t = new T3.CanvasTexture(cv); t.colorSpace = T3.SRGBColorSpace; t.anisotropy = 8;
+      var draw = function () { var g = cv.getContext('2d'); g.fillStyle = bg; g.fillRect(0, 0, w, h); if (border) { g.strokeStyle = border; g.lineWidth = h * 0.045; g.strokeRect(h * 0.05, h * 0.05, w - h * 0.1, h - h * 0.1); } g.textAlign = 'center'; g.textBaseline = 'middle';
+        lines.forEach(function (l) { var sz = l.s, f = function () { g.font = (l.w || '700') + ' ' + sz + 'px ' + (l.f || 'Inter, system-ui, sans-serif'); }; f(); while (sz > 10 && g.measureText(l.t).width > w * (l.fit || 0.88)) { sz -= 2; f(); } if (l.sp) g.letterSpacing = l.sp; g.fillStyle = l.c; g.fillText(l.t, w / 2, l.y * h); if (l.sp) g.letterSpacing = '0px'; }); t.needsUpdate = true; };
+      draw(); if (document.fonts && lines.some(function (l) { return l.f === DEV; })) document.fonts.load('500 40px "Noto Sans Devanagari"', 'विद्यालय').then(draw).catch(function () { }); return t; };
+    var board = function (w, h, d, t, base, x, y, z, ry) { var b = S(base, {}), face = s.moonMat(0.6, { map: t, roughness: 0.7 }, 0xffe6c0); return put(new T3.BoxGeometry(w, h, d), [b, b, b, b, face, b], x, y, z, ry); };
+    var screenM = function (t, k) { var m = new T3.MeshStandardMaterial({ color: 0x0b1220, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: k || 1, roughness: 0.3 }); (s.screens = s.screens || []).push(m); return m; };
+    var glow = function (x, y, z, sc, col, op) { var g = new T3.Sprite(new T3.SpriteMaterial({ map: s.glowTex(T3), transparent: true, depthWrite: false, blending: T3.AdditiveBlending, opacity: op || 0.35, color: col || 0x9cc3ff })); g.position.set(x, y, z); g.scale.set(sc, sc, 1); G.add(g); return g; };
+    var pad = function (x, z, w, d, m, lift) { var sp = span(x, z, w, d), top = sp[1] + (lift || 0.12); B(w, top - sp[0] + 1.2, d, m, x, (sp[0] - 1.2 + top) / 2, z, 0, false); return top; };
+    var codeT = function (lines) { return tex(512, 300, function (g, w, h) { g.fillStyle = '#0d1424'; g.fillRect(0, 0, w, h); g.fillStyle = '#16213a'; g.fillRect(0, 0, w, 26); ['#ff5f57', '#febc2e', '#28c840'].forEach(function (cc, q) { g.fillStyle = cc; g.beginPath(); g.arc(16 + q * 16, 13, 5, 0, 6.283); g.fill(); }); g.font = '500 17px "JetBrains Mono", Menlo, monospace'; g.textBaseline = 'top'; lines.forEach(function (ln, q) { var x = 14; ln.forEach(function (tk) { g.fillStyle = tk[1]; g.fillText(tk[0], x, 38 + q * 22); x += g.measureText(tk[0]).width; }); }); }); };
+    var K1 = '#c792ea', K2 = '#98b9fb', K3 = '#f4b961', K4 = '#dbe2eb', K5 = '#93d694';
+    /* people: baked, posed rigs drawn as two instanced meshes (clothes take the instance colour), each with a soft contact shadow */
+    var vcM = s.moonMat(0.3, { vertexColors: true, roughness: 0.8 }, 0xffe6c0), blobM = new T3.MeshBasicMaterial({ map: s.glowTex(T3), color: 0x000000, transparent: true, opacity: 0.4, depthWrite: false }), blobG = new T3.PlaneGeometry(1, 1); blobG.rotateX(-Math.PI / 2);
+    var crowd = function (o, pose, list, noBlob) { var bk = s.bakePerson(T3, o, pose), out = [], place = function (p, k, d) { d.position.set(p[0], p[1], p[2]); d.rotation.y = p[3] || 0; var sc = p[5] || (0.95 + s.h2(k + p[0] * 7, 21) * 0.1); d.scale.set(sc, sc, sc); };
+      if (bk.tint) out.push(G.add(s.inst(T3, bk.tint, list, function (p, k, d, c0) { place(p, k, d); if (p[4]) c0.setStyle(p[4]); }, vcM)) && G.children[G.children.length - 1]); out.push(G.add(s.inst(T3, bk.base, list, place, vcM)) && G.children[G.children.length - 1]); if (noBlob) return out;
+      var bl = new T3.InstancedMesh(blobG, blobM, list.length), dm = new T3.Object3D(), sat = pose === 'sit' || pose === 'type'; list.forEach(function (p, k) { var fw = sat ? 0.35 : 0; dm.position.set(p[0] + Math.sin(p[3] || 0) * fw, p[1] + 0.03, p[2] + Math.cos(p[3] || 0) * fw); dm.rotation.set(0, 0, 0); dm.scale.set(1.0, 1, 1.0); dm.updateMatrix(); bl.setMatrixAt(k, dm.matrix); }); bl.instanceMatrix.needsUpdate = true; G.add(bl); return out; };
+    var CAS = function (tp, lw) { return { h: 1, top: '#ffffff', low: lw || '#3b5b8c', shoe: '#e9e6df', pack: tp }; };
+    var chair = function (x, y, z, ry, m, seat) { var cm = m || paint(0x7d838c), g = new T3.Group(); g.position.set(x, y, z); g.rotation.y = ry || 0; G.add(g); var prev = G; G = g; B(0.5, 0.06, 0.48, cm, 0, seat || 0.47, 0); B(0.5, 0.56, 0.06, cm, 0, (seat || 0.47) + 0.3, -0.22, 0); [[0.21, 0.2], [-0.21, 0.2], [0.21, -0.2], [-0.21, -0.2]].forEach(function (q) { B(0.04, seat || 0.47, 0.04, dark, q[0], (seat || 0.47) / 2, q[1]); }); G = prev; g.updateMatrixWorld(true); g.children.slice().forEach(function (m0) { m0.applyMatrix4(g.matrix); G.add(m0); }); G.remove(g); };
+    var plant = function (x, y, z, sc, flower) { sc = sc || 1; Cy(0.26 * sc, 0.2 * sc, 0.5 * sc, paint(0xa0522d, 0.9), x, y + 0.25 * sc, z); var lf = paint(0x3f7a2e, 0.9); Sp(0.42 * sc, 0.5 * sc, 0.42 * sc, lf, x, y + 0.85 * sc, z); Sp(0.3 * sc, 0.36 * sc, 0.3 * sc, lf, x + 0.18 * sc, y + 1.15 * sc, z + 0.05); if (flower) for (var q = 0; q < 5; q++) Sp(0.08 * sc, 0.08 * sc, 0.08 * sc, paint(flower, 0.8), x + Math.cos(q * 1.3) * 0.3 * sc, y + (0.95 + (q % 2) * 0.2) * sc, z + Math.sin(q * 1.3) * 0.3 * sc); };
+    var tree = function (x, y, z, sc) { Cy(0.22 * sc, 0.32 * sc, 3.4 * sc, paint(0x5a4030, 0.95), x, y + 1.7 * sc, z); var lf = [paint(0x2f5f22, 0.95), paint(0x3d7a2c, 0.95)]; [[0, 4.4, 0, 2.2], [1.3, 4.0, 0.4, 1.6], [-1.2, 4.1, -0.3, 1.7], [0.2, 5.2, -0.5, 1.5], [-0.4, 4.0, 1.1, 1.4]].forEach(function (q, k) { Sp(q[3] * sc, q[3] * 0.8 * sc, q[3] * sc, lf[k % 2], x + q[0] * sc, y + q[1] * sc, z + q[2] * sc); }); };
+    /* two-wheelers, the street furniture of Kathmandu: a scooter and a bicycle */
+    var scooter = function (x, y, z, ry, col) { var g = new T3.Group(); g.position.set(x, y, z); g.rotation.y = ry || 0; G.add(g); var prev = G; G = g; var bm = carPaint(col);
+      [0.62, -0.62].forEach(function (zz) { put(new T3.TorusGeometry(0.2, 0.07, 8, 18), tyre, 0, 0.27, zz, Math.PI / 2); }); B(0.32, 0.22, 1.1, bm, 0, 0.42, -0.05); B(0.3, 0.16, 0.62, black, 0, 0.62, -0.25); B(0.34, 0.5, 0.2, bm, 0, 0.62, 0.42, 0); put(new T3.CylinderGeometry(0.025, 0.025, 0.55, 8), dark, 0, 0.95, 0.5, 0, true, 0, Math.PI / 2); put(new T3.CylinderGeometry(0.06, 0.06, 0.05, 12), glowM(0xfff1c8, 0.2, 1.6), 0, 0.82, 0.53, 0, true, Math.PI / 2);
+      G = prev; g.updateMatrixWorld(true); g.children.slice().forEach(function (m0) { m0.applyMatrix4(g.matrix); G.add(m0); }); G.remove(g); };
+    var bicycle = function (x, y, z, ry, col) { var g = new T3.Group(); g.position.set(x, y, z); g.rotation.y = ry || 0; G.add(g); var prev = G; G = g; var fm = paint(col, 0.5);
+      [0.48, -0.48].forEach(function (zz) { put(new T3.TorusGeometry(0.3, 0.025, 6, 20), tyre, 0, 0.33, zz, Math.PI / 2); }); put(new T3.CylinderGeometry(0.022, 0.022, 0.75, 6), fm, 0, 0.55, 0, 0, true, 1.2); put(new T3.CylinderGeometry(0.022, 0.022, 0.5, 6), fm, 0, 0.5, -0.25, 0, true, 0.35); put(new T3.CylinderGeometry(0.022, 0.022, 0.55, 6), fm, 0, 0.5, 0.3, 0, true, -0.3); B(0.12, 0.04, 0.22, black, 0, 0.78, -0.2); put(new T3.CylinderGeometry(0.018, 0.018, 0.42, 6), dark, 0, 0.82, 0.38, 0, true, 0, Math.PI / 2);
+      G = prev; g.updateMatrixWorld(true); g.children.slice().forEach(function (m0) { m0.applyMatrix4(g.matrix); G.add(m0); }); G.remove(g); };
+    var bus = function (x, y, z, ry, col, side, front, rows) { var g = new T3.Group(); g.position.set(x, y, z); g.rotation.y = ry || 0; s.scene.add(g); var prev = G; G = g; var bp = carPaint(col), sideM = s.moonMat(0.3, { map: side, roughness: 0.45 }, 0xffe6c0);
+      put(box, [s.moonMat(0.3, { map: front, roughness: 0.45 }, 0xffe6c0), bp, carPaint(0xf4f1e8), dark, sideM, sideM], 0, 2.05, 0).scale.set(10.5, 2.6, 2.5); B(10.2, 0.16, 2.4, paint(0xf4f1e8), 0, 3.42, 0);
+      if (rows) rows.forEach(function (b, q) { B(b[2], b[3], 1.4, paint(b[4]), b[0], b[1] + b[3] / 2, q % 2 ? -0.3 : 0.3, (q - 2) * 0.08); });
+      [-3.4, -2.25, 3.6].forEach(function (wx) { [1.12, -1.12].forEach(function (wz) { put(new T3.CylinderGeometry(0.55, 0.55, 0.42, 18), tyre, wx, 0.55, wz, 0, true, Math.PI / 2); Cy(0.28, 0.28, 0.44, metal(0xc9ccd2), wx, 0.55, wz).rotation.x = Math.PI / 2; }); });
+      B(0.2, 0.36, 2.5, dark, 5.32, 0.95, 0); [0.82, -0.82].forEach(function (wz) { put(box, glowM(0xfff1c8, 0.15, 2.4), 5.29, 1.3, wz).scale.set(0.06, 0.24, 0.4); put(box, glowM(0xd8322a, 0.2, 1.4), -5.29, 1.3, wz).scale.set(0.06, 0.3, 0.3); });
+      G = prev; return g; };
+    var busSide = function (base, band, label, labelFont, labelCol) { return tex(1024, 256, function (g, w, h) { g.fillStyle = base; g.fillRect(0, 0, w, h); g.fillStyle = '#f4f1e8'; g.fillRect(0, 0, w, 12); g.fillStyle = 'rgba(255,255,255,0.9)'; g.fillRect(0, 24, w, 104);
+      for (var q = 0; q < 8; q++) { var wx = 36 + q * 104, gr = g.createLinearGradient(wx, 32, wx + 88, 118); gr.addColorStop(0, '#2b3d52'); gr.addColorStop(0.5, '#4a6580'); gr.addColorStop(1, '#1d2a3c'); g.fillStyle = gr; g.fillRect(wx, 32, 88, 86); }
+      g.fillStyle = '#1d2a3c'; g.fillRect(w - 128, 32, 72, 206); g.fillStyle = band; g.fillRect(0, 136, w - 140, 14); g.fillStyle = labelCol; g.font = labelFont; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(label, 440, 200); g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(0, h - 14, w, 14); }); };
+    var busFront = function (base, label) { return tex(256, 256, function (g, w, h) { g.fillStyle = base; g.fillRect(0, 0, w, h); g.fillStyle = '#121418'; g.fillRect(18, 6, 220, 34); g.fillStyle = '#f2b705'; g.font = '700 22px ' + (label.charCodeAt(0) > 2300 ? DEV : 'Inter, sans-serif'); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(label, w / 2, 24); var gr = g.createLinearGradient(0, 48, 0, 152); gr.addColorStop(0, '#4a6580'); gr.addColorStop(1, '#1d2a3c'); g.fillStyle = gr; g.fillRect(12, 48, 232, 104); g.fillStyle = base; g.fillRect(124, 48, 8, 104); g.fillStyle = '#f4f1e8'; g.fillRect(0, 160, w, 10); g.fillStyle = '#2b2b2b'; g.fillRect(72, 180, 112, 54); }); };
+    /* the workstation: desk, two monitors of code, laptop, lamp, plant and chair; at home in 2022 and on the mountain today */
+    var station = function (x, y, z, code, code2) { var top = wood(0xd9b98c); B(2.4, 0.07, 0.95, top, x, y + 0.76, z - 1.0); [[-1.1, -0.4], [1.1, -0.4], [-1.1, 0.4], [1.1, 0.4]].forEach(function (q) { B(0.06, 0.76, 0.06, dark, x + q[0], y + 0.38, z - 1.0 + q[1]); });
+      [[-0.35, code, 0.12], [0.62, code2 || code, -0.35]].forEach(function (mn) { var mx = x + mn[0]; B(0.08, 0.3, 0.08, dark, mx, y + 0.95, z - 1.32); B(0.3, 0.02, 0.2, dark, mx, y + 0.8, z - 1.32); var sc = put(box, dark, mx, y + 1.38, z - 1.34, mn[2]); sc.scale.set(0.94, 0.56, 0.05); put(new T3.PlaneGeometry(0.88, 0.5), screenM(mn[1], 1.05), mx + Math.sin(mn[2]) * 0.027, y + 1.38, z - 1.34 + Math.cos(mn[2]) * 0.027, mn[2], false); });
+      B(0.42, 0.02, 0.15, dark, x - 0.2, y + 0.81, z - 0.78); B(0.12, 0.03, 0.08, dark, x + 0.25, y + 0.81, z - 0.75); Cy(0.05, 0.045, 0.12, paint(0xd8322a), x - 0.95, y + 0.86, z - 0.75); plant(x + 1.0, y + 0.8, z - 1.25, 0.32);
+      (s.screenGlow = s.screenGlow || []).push(glow(x + 0.1, y + 1.4, z - 1.15, 2.4, 0x9cc3ff, 0.3));
+      chair(x, y, z - 0.15, Math.PI, paint(0x30343c)); };
+
+    /* EARLY YEARS · a Terai school: a single-storey plastered brick block with blue trim and a red tin roof over a pillared verandah, the painted
+       name board, the Nepal flag over a dirt assembly ground, a boundary wall and gate; pupils in light-blue shirts and navy at assembly, a
+       teacher in a sari, bicycles, a hand pump and a shade tree. He leaves through the gate with his school-leaving certificate. */
+    var x0 = P(0) + 12, z0 = -14.5; scene(x0); var sp0 = span(x0, z0, 26, 18), yb = sp0[1] + 0.08;
+    B(26, yb - sp0[0] + 1.2, 18, dirt, x0, (sp0[0] - 1.2 + yb) / 2, z0, 0, false);
+    var bz = z0 - 4.6, cream = plaster(0xefe6d2), trim = paint(0x3d6fb6), redTin = tin(0xa5392b);
+    B(16, 3.2, 5, cream, x0, yb + 1.6, bz); B(16.06, 0.9, 5.06, trim, x0, yb + 0.45, bz); B(16.08, 0.18, 5.08, trim, x0, yb + 3.1, bz);
+    put(s.prism(T3), cream, x0 - 8, yb + 3.2, bz, Math.PI / 2).scale.set(5, 1.1, 0.2); put(s.prism(T3), cream, x0 + 8, yb + 3.2, bz, Math.PI / 2).scale.set(5, 1.1, 0.2);
+    var th = Math.atan2(1.1, 2.5); [-1, 1].forEach(function (k) { put(s.tbox(T3, 17, 0.06, 3.1, 2.6), redTin, x0, yb + 3.2 + 0.58, bz + k * 1.3, 0, true, k * th); }); B(17, 0.12, 0.16, dark, x0, yb + 4.32, bz);
+    var fz = bz + 2.5; for (i = 0; i < 5; i++) { if (i === 2) continue; var wx0 = x0 - 6 + i * 3; B(1.5, 1.3, 0.1, trim, wx0, yb + 1.75, fz + 0.03); B(1.22, 1.02, 0.06, glass, wx0, yb + 1.75, fz + 0.07); for (r = 0; r < 5; r++) B(0.035, 1.02, 0.035, dark, wx0 - 0.5 + r * 0.25, yb + 1.75, fz + 0.12); B(1.6, 0.1, 0.22, cream, wx0, yb + 1.06, fz + 0.1); }
+    B(1.3, 2.3, 0.1, trim, x0, yb + 1.15, fz + 0.03); B(1.1, 2.15, 0.08, paint(0x2f6b4f), x0, yb + 1.1, fz + 0.06); B(0.5, 0.7, 0.04, glass, x0, yb + 0.2 + 1.5, fz - 0.02);
+    B(16.6, 0.3, 3.4, concrete(0xd8d2c4), x0, yb + 0.15, fz + 1.7); B(4, 0.15, 0.6, concrete(0xd8d2c4), x0, yb + 0.07, fz + 3.7);
+    for (i = 0; i < 7; i++) { var px0 = x0 - 7.8 + i * 2.6; Cy(0.15, 0.15, 2.7, plaster(0xf4efe6), px0, yb + 1.65, fz + 3.15); Cy(0.19, 0.19, 0.5, trim, px0, yb + 0.55, fz + 3.15); }
+    put(s.tbox(T3, 17, 0.06, 3.6, 2.6), redTin, x0, yb + 3.08, fz + 1.75, 0, true, 0.09); B(17, 0.22, 0.1, trim, x0, yb + 2.86, fz + 3.55);
+    var schoolT = signTex(1024, 220, '#fbfaf5', [{ t: SCHOOL_SIGN, s: 92, c: '#1d3f8f', y: 0.38, w: '800' }, { t: 'विद्यालय · सर्लाही', s: 64, c: '#c8302a', y: 0.76, f: DEV, w: '500' }], '#1d3f8f');
+    board(7.2, 1.55, 0.1, schoolT, 0x1d3f8f, x0, yb + 3.72, fz + 3.6); [-3.2, 3.2].forEach(function (d) { B(0.08, 0.7, 0.08, dark, x0 + d, yb + 3.15, fz + 3.56); });
+    [-1, 1].forEach(function (k) { for (i = 0; i < 2; i++) { var px1 = x0 + k * (5.2 + i * 1.3); Cy(0.2, 0.15, 0.35, paint(0xa0522d, 0.9), px1, yb + 0.48, fz + 2.8); Sp(0.26, 0.3, 0.26, paint(0x3f7a2e, 0.9), px1, yb + 0.8, fz + 2.8); for (r = 0; r < 4; r++) Sp(0.07, 0.07, 0.07, paint(0xf29a1a, 0.8), px1 + Math.cos(r * 1.6) * 0.18, yb + 0.92, fz + 2.8 + Math.sin(r * 1.6) * 0.18); } });
+    var wallZ = z0 + 7.6, gx0 = P(0) + 3.2, gx1 = P(0) + 6.0, wallM = plaster(0xf1ebe0), wallB = paint(0x3d6fb6);
+    [[x0 - 13, gx0], [gx1, x0 + 13]].forEach(function (w0) { var wl = w0[1] - w0[0], wc = (w0[0] + w0[1]) / 2; B(wl, 1.05, 0.26, wallM, wc, yb + 0.52, wallZ); B(wl + 0.04, 0.12, 0.32, wallB, wc, yb + 1.1, wallZ); B(wl + 0.02, 0.3, 0.28, wallB, wc, yb + 0.15, wallZ); });
+    [-1, 1].forEach(function (k) { var sx0 = x0 + k * 13; B(0.26, 1.05, 17.2, wallM, sx0, yb + 0.52, z0); B(0.32, 0.12, 17.24, wallB, sx0, yb + 1.1, z0); });
+    [gx0 - 0.25, gx1 + 0.25].forEach(function (gx) { B(0.55, 2.1, 0.55, wallM, gx, yb + 1.05, wallZ); B(0.7, 0.16, 0.7, wallB, gx, yb + 2.18, wallZ); Sp(0.18, 0.12, 0.18, wallB, gx, yb + 2.3, wallZ); });
+    [[gx0 + 0.05, -1.2], [gx1 - 0.05, 1.2]].forEach(function (lf) { var gg = new T3.Group(); gg.position.set(lf[0], yb, wallZ); gg.rotation.y = lf[1]; G.add(gg); var prev = G; G = gg; var gm = paint(0x2d5f9a, 0.45), dir = lf[1] < 0 ? 1 : -1; B(1.35, 0.06, 0.05, gm, dir * 0.68, 1.55, 0); B(1.35, 0.06, 0.05, gm, dir * 0.68, 0.2, 0); for (r = 0; r < 7; r++) B(0.03, 1.4, 0.03, gm, dir * (0.08 + r * 0.2), 0.88, 0); G = prev; gg.updateMatrixWorld(true); gg.children.slice().forEach(function (m0) { m0.applyMatrix4(gg.matrix); G.add(m0); }); G.remove(gg); });
+    var fx0 = P(0) + 2.6, fz0 = z0 + 2.2; B(1.6, 0.3, 1.6, concrete(0xcfc9bc), fx0, yb + 0.15, fz0); B(1.1, 0.2, 1.1, concrete(0xcfc9bc), fx0, yb + 0.4, fz0); Cy(0.05, 0.07, 6.4, metal(0xd9d6cc), fx0, yb + 3.5, fz0);
+    var flagS = function (sc) { var sh = new T3.Shape(); sh.moveTo(0, 0); sh.lineTo(1.25 * sc, 0); sh.lineTo(0.42 * sc, 0.78 * sc); sh.lineTo(1.05 * sc, 0.78 * sc); sh.lineTo(0, 1.62 * sc); sh.lineTo(0, 0); return new T3.ShapeGeometry(sh); };
+    var fb = new T3.Mesh(flagS(1.08), new T3.MeshStandardMaterial({ color: 0x003893, side: T3.DoubleSide, roughness: 0.9 })), fr = new T3.Mesh(flagS(1), new T3.MeshStandardMaterial({ color: 0xdc143c, side: T3.DoubleSide, roughness: 0.9 }));
+    fb.position.set(fx0 + 0.06, yb + 4.6, fz0); fr.position.set(fx0 + 0.11, yb + 4.67, fz0 + 0.02); fb.scale.set(1.2, 1.2, 1); fr.scale.set(1.2, 1.2, 1); G.add(fb); G.add(fr);
+    var hp = [x0 + 9.5, z0 + 4.5]; B(0.9, 0.12, 0.9, concrete(0xbdb6a8), hp[0], yb + 0.06, hp[1]); Cy(0.09, 0.11, 1.0, metal(0x2f6b4f), hp[0], yb + 0.6, hp[1]); B(0.08, 0.08, 0.7, metal(0x2f6b4f), hp[0], yb + 1.12, hp[1] + 0.3); Cy(0.04, 0.04, 0.35, metal(0x2f6b4f), hp[0], yb + 0.95, hp[1] - 0.18);
+    tree(x0 + 10.8, yb, z0 + 6.6, 1); tree(x0 - 10.5, yb, z0 - 5.8, 0.9);
+    [[gx1 + 1.2, 0x2f6fd4], [gx1 + 2.0, 0x1d1f24], [gx1 + 2.8, 0xc8302a]].forEach(function (b0) { bicycle(b0[0], yb, wallZ - 0.5, Math.PI / 2 + 0.08, b0[1]); });
+    var kids = [], kidsG = []; for (r = 0; r < 3; r++) for (c = 0; c < 6; c++) (c % 2 ? kidsG : kids).push([P(0) + 8 + c * 1.55 + (r % 2) * 0.3, yb, z0 + 5 - r * 1.7, -Math.PI / 2 + (s.h2(r * 7 + c, 51) - 0.5) * 0.25, '#a9cbe8', 0.93 + s.h2(r * 7 + c, 52) * 0.12]);
+    crowd({ h: 0.58, top: '#ffffff', low: '#1f2d5c', tie: '#7a1f2b', collar: '#c3dbf0', sleeve: 'short' }, 'attn', kids); crowd({ h: 0.56, top: '#ffffff', skirt: '#1f2d5c', tie: '#7a1f2b', collar: '#c3dbf0', sleeve: 'short', braids: true }, 'attn', kidsG);
+    crowd({ h: 0.94, top: '#ffffff', sari: true, sariB: '#e2b23c', long: true }, 'clasp', [[P(0) + 6.3, yb, z0 + 3.4, Math.PI / 2 - 0.15, '#c2185b', 1]]);
+    SPOT[0] = { x: P(0) + 4.6, z: wallZ + 0.9, y: yb, yaw: 0.15, see: [x0, yb + 3.72, fz + 3.6], seeW: 3.6 }; done();
+
+    /* 2019 · Uniglobe SS / College, Kamaladi: a five-storey plastered block with brick piers and maroon bands, the name across the parapet,
+       a gate with its own board, the futsal and basketball court, a yellow college bus; the long-distance bus that brought him on the road */
+    var x1 = P(1) + 8, z1 = -17, sp1 = span(x1 + 6, -13, 34, 16), f1 = sp1[1] + 0.1; scene(x1);
+    B(34, f1 - sp1[0] + 1.2, 16, concrete(0xb9b6ae), x1 + 6, (sp1[0] - 1.2 + f1) / 2, -13, 0, false);
+    var ucream = plaster(0xece3d1), umaroon = paint(0x8f2d22), utop = f1 + 15.8;
+    B(16, 15.6, 8, ucream, x1, f1 + 7.8, z1); B(16.3, 0.6, 8.3, umaroon, x1, f1 + 15.9, z1);
+    for (var fl = 0; fl < 5; fl++) { var yy = f1 + 0.2 + fl * 3.1; B(16.2, 0.28, 8.2, umaroon, x1, yy + 3.0, z1); if (fl === 0) continue; for (c = 0; c < 5; c++) { var wx1 = x1 - 6 + c * 3; B(2.3, 1.75, 0.08, metal(0xc9ccd2), wx1, yy + 1.55, z1 + 4.02); B(2.14, 1.6, 0.06, fl === 2 && c % 2 ? s.sWin : glass, wx1, yy + 1.55, z1 + 4.06); B(0.05, 1.6, 0.08, metal(0xc9ccd2), wx1, yy + 1.55, z1 + 4.08); } }
+    [-7.6, -4.5, -1.5, 1.5, 4.5, 7.6].forEach(function (d) { B(0.6, 15.6, 0.5, brick, x1 + d, f1 + 7.8, z1 + 4.15); });
+    B(4.6, 2.6, 0.08, metal(0xc9ccd2), x1, f1 + 1.5, z1 + 4.04); B(4.4, 2.4, 0.06, glass, x1, f1 + 1.45, z1 + 4.08); B(6, 0.25, 2.2, concrete(0xd8d4cc), x1, f1 + 3.0, z1 + 5.1); [-2.7, 2.7].forEach(function (d) { Cy(0.12, 0.12, 2.9, metal(0xc9ccd2), x1 + d, f1 + 1.5, z1 + 6.0); }); B(6, 0.3, 1.2, concrete(0xd8d4cc), x1, f1 + 0.15, z1 + 4.7);
+    board(14.4, 2.3, 0.2, signTex(1024, 164, '#1d3f8f', [{ t: 'UNIGLOBE SS / COLLEGE', s: 76, c: '#ffffff', y: 0.4, w: '800' }, { t: '+2 · MANAGEMENT · SCIENCE · LAW · KAMALADI', s: 30, c: '#f4b961', y: 0.8, w: '600' }]), 0x1d3f8f, x1, utop + 1.45, z1 + 3.6);
+    var gz1 = -5.6, gw = [P(1) + 1.6, P(1) + 6.6]; gw.forEach(function (gx) { B(0.7, 3.2, 0.7, umaroon, gx, f1 + 1.6, gz1); }); board(5.8, 1.0, 0.3, signTex(512, 90, '#8f2d22', [{ t: 'UNIGLOBE', s: 58, c: '#ffffff', y: 0.55, w: '800' }]), 0x8f2d22, (gw[0] + gw[1]) / 2, f1 + 3.4, gz1);
+    [[P(1) - 10.8, gw[0] - 0.35], [gw[1] + 0.35, P(1) + 31]].forEach(function (w0) { var wl = w0[1] - w0[0], wc = (w0[0] + w0[1]) / 2; B(wl, 1.6, 0.3, plaster(0xe8dfcc), wc, f1 + 0.8, gz1); B(wl + 0.04, 0.12, 0.36, umaroon, wc, f1 + 1.62, gz1); for (var q = 0; q < wl / 2.4; q++) B(0.05, 0.9, 0.05, dark, w0[0] + 1.2 + q * 2.4, f1 + 2.1, gz1); });
+    var cx1 = P(1) + 24, cz1 = -12.6, cw1 = 13, cd1 = 8.2;
+    var courtT = tex(1024, 640, function (g, w, h) { g.fillStyle = '#2f7d4a'; g.fillRect(0, 0, w, h); for (var q = 0; q < 12; q++) { g.fillStyle = q % 2 ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.04)'; g.fillRect(q * w / 12, 0, w / 12, h); } g.strokeStyle = '#f4f1e8'; g.lineWidth = 7; g.strokeRect(24, 24, w - 48, h - 48); g.beginPath(); g.moveTo(w / 2, 24); g.lineTo(w / 2, h - 24); g.stroke(); g.beginPath(); g.arc(w / 2, h / 2, 80, 0, 6.283); g.stroke();
+      [24, w - 24].forEach(function (x, k) { g.beginPath(); g.arc(x, h / 2, 160, k ? Math.PI / 2 : -Math.PI / 2, k ? Math.PI * 1.5 : Math.PI / 2); g.stroke(); }); g.strokeStyle = '#f2b705'; g.lineWidth = 5; g.strokeRect(24, h / 2 - 70, 150, 140); g.strokeRect(w - 174, h / 2 - 70, 150, 140); });
+    put(new T3.PlaneGeometry(cw1, cd1), new T3.MeshStandardMaterial({ map: courtT, roughness: 0.8 }), cx1, f1 + 0.03, cz1, 0, false, -Math.PI / 2);
+    var netT = tex(128, 128, function (g, w, h) { g.clearRect(0, 0, w, h); g.strokeStyle = 'rgba(30,34,40,0.85)'; g.lineWidth = 2; for (var q = 0; q <= w; q += 16) { g.beginPath(); g.moveTo(q, 0); g.lineTo(q + 64, h); g.stroke(); g.beginPath(); g.moveTo(q, 0); g.lineTo(q - 64, h); g.stroke(); } }); netT.wrapS = netT.wrapT = T3.RepeatWrapping;
+    var netM = new T3.MeshStandardMaterial({ map: netT, transparent: true, alphaTest: 0.3, side: T3.DoubleSide, roughness: 0.8 }); [[cx1, cz1 - cd1 / 2 - 0.4, cw1 + 0.8, 0], [cx1 + cw1 / 2 + 0.4, cz1, cd1 + 0.8, Math.PI / 2], [cx1 - cw1 / 2 - 0.4, cz1, cd1 + 0.8, Math.PI / 2]].forEach(function (n0) { var nt = netT.clone(); nt.needsUpdate = true; nt.repeat.set(n0[2] / 1.2, 3.4 / 1.2); var nm = netM.clone(); nm.map = nt; put(new T3.PlaneGeometry(n0[2], 3.4), nm, n0[0], f1 + 1.7, n0[1], n0[3], false); });
+    for (i = 0; i <= 6; i++) { B(0.08, 3.6, 0.08, dark, cx1 - cw1 / 2 - 0.4 + i * (cw1 + 0.8) / 6, f1 + 1.8, cz1 - cd1 / 2 - 0.4); } [-1, 1].forEach(function (k) { for (i = 0; i <= 3; i++) B(0.08, 3.6, 0.08, dark, cx1 + k * (cw1 / 2 + 0.4), f1 + 1.8, cz1 - cd1 / 2 - 0.4 + i * (cd1 + 0.8) / 3); });
+    [-1, 1].forEach(function (k) { var gx = cx1 + k * (cw1 / 2 - 0.3); Cy(0.05, 0.05, 1.5, white, gx, f1 + 0.75, cz1 - 1.1, 8); Cy(0.05, 0.05, 1.5, white, gx, f1 + 0.75, cz1 + 1.1, 8); put(new T3.CylinderGeometry(0.05, 0.05, 2.2, 8), white, gx, f1 + 1.5, cz1, 0, true, Math.PI / 2); });
+    var hx = cx1 - cw1 / 2 + 1.2; Cy(0.1, 0.12, 3.6, metal(0x2f6fd4), hx - 0.9, f1 + 1.8, cz1 - 3.2); B(0.9, 0.08, 0.08, metal(0x2f6fd4), hx - 0.45, f1 + 3.4, cz1 - 3.2); B(0.06, 1.0, 1.6, white, hx, f1 + 3.5, cz1 - 3.2); put(new T3.TorusGeometry(0.24, 0.025, 6, 20), paint(0xe2621b, 0.5), hx + 0.3, f1 + 3.15, cz1 - 3.2, 0, true, Math.PI / 2);
+    crowd(CAS('#2b3140'), 'talk', [[cx1 - 2, f1, cz1 + 1.2, 1.2, '#d8322a'], [cx1 + 1.5, f1, cz1 - 1.5, -2.2, '#2f6fd4']]); crowd(CAS(null), 'stand', [[cx1 + 3.8, f1, cz1 + 0.6, -1.4, '#f2b705'], [cx1 - 4.6, f1, cz1 - 1.8, 1.9, '#d8322a']]);
+    crowd(CAS('#2b3140'), 'stand', [[P(1) + 8.8, f1, -8.0, -0.5, '#f4f1e8'], [P(1) + 9.8, f1, -8.7, -1.4, '#2f6fd4'], [P(1) + 11.6, f1, -7.9, -2.6, '#f4f1e8'], [P(1) - 0.6, f1, -8.4, 0.5, '#7a3fd1']]);
+    for (i = 0; i < 4; i++) scooter(P(1) + 13 + i * 1.1, f1, -8.0, Math.PI / 2 + 0.25, [0xd8322a, 0x2b3140, 0xf4f1e8, 0x2f6fd4][i]);
+    var ybus = bus(P(1) - 3.5, f1 + 0.02, -10.2, 0, 0xf2b705, busSide('#f2b705', '#1d3f8f', 'UNIGLOBE COLLEGE', '800 54px Inter, sans-serif', '#1d3f8f'), busFront('#f2b705', 'UNIGLOBE'), null); s.scene.remove(ybus); G.add(ybus); ybus.scale.setScalar(0.92);
+    plant(x1 - 3.4, f1, z1 + 5.4, 1.1, 0xf29a1a); plant(x1 + 3.4, f1, z1 + 5.4, 1.1, 0xf29a1a);
+    SPOT[1] = { x: P(1) + 4.1, z: -6.4, y: f1, see: [x1, utop + 1.45, z1 + 3.6], seeW: 7.2 }; done();
+    var bx = P(1) + 19, rows = [[-3.3, 3.5, 1.2, 0.9, 0x2f6fd4], [-1.7, 3.5, 1.1, 0.7, 0xf2b705], [-0.3, 3.5, 1.3, 0.8, 0x3c9a4a], [1.3, 3.5, 1.0, 0.9, 0xd8322a], [2.8, 3.5, 1.2, 0.6, 0x8a5a34], [-3.2, 4.4, 0.8, 0.5, 0xe85c9a]];
+    G = new T3.Group(); G.userData.x = bx; s.scene.add(G); s.SG.push(G);
+    s.bus = bus(bx, s.roadH(bx) + 0.17, -1.9, 0, 0xd8452e, busSide('#d8452e', '#f2b705', 'काठमाडौं', '700 56px ' + DEV, '#ffffff'), busFront('#d8452e', 'काठमाडौं'), rows); s.scene.remove(s.bus); G.add(s.bus); s.bus.rotation.z = Math.atan2(s.roadH(bx + 5) - s.roadH(bx - 5), 10); s.busY = s.bus.position.y; done();
+
+    /* FEB 2021 · Herald College Kathmandu: a glass-and-concrete block, lime-green fins and portal, the name across the top and on a sign by the
+       road, a paved forecourt with planters and a row of scooters, students with laptops and backpacks */
+    var x2 = P(2) + 4, z2 = -19.5, sp2 = span(x2, -14, 26, 18), f2 = sp2[1] + 0.1; scene(x2);
+    B(26, f2 - sp2[0] + 1.2, 18, concrete(0xd2d0ca), x2, (sp2[0] - 1.2 + f2) / 2, -14, 0, false);
+    var conc = concrete(0xe9e8e3), lime = paint(0x7cc142, 0.5), top2 = f2 + 13;
+    B(20, 13, 9, conc, x2, f2 + 6.5, z2); B(20.4, 0.5, 9.4, conc, x2, top2 + 0.25, z2);
+    for (fl = 0; fl < 4; fl++) { var y2 = f2 + 0.3 + fl * 3.15; B(19.6, 2.5, 0.1, fl === 1 ? s.sWin : glass, x2 + 0.6, y2 + 1.55, z2 + 4.52); B(20.2, 0.5, 0.3, conc, x2, y2 + 2.95, z2 + 4.6); for (c = 0; c < 9; c++) B(0.07, 2.5, 0.14, metal(0xb9bdc2), x2 - 9.2 + c * 2.35, y2 + 1.55, z2 + 4.58); }
+    [-9.6, -6.6, -3.6, 3.6, 6.6, 9.6].forEach(function (d) { B(0.42, 13, 0.55, lime, x2 + d, f2 + 6.5, z2 + 4.9); });
+    B(5.2, 3.6, 0.6, lime, x2, f2 + 1.8, z2 + 5.0); B(4.2, 2.9, 0.1, glass, x2, f2 + 1.45, z2 + 5.32); B(6.4, 0.3, 2.6, conc, x2, f2 + 3.5, z2 + 6.0);
+    board(15, 1.8, 0.16, signTex(1024, 124, '#ffffff', [{ t: 'HERALD COLLEGE KATHMANDU', s: 70, c: '#2e7d32', y: 0.54, w: '800' }]), 0xffffff, x2, top2 + 1.2, z2 + 4.4);
+    var sx2 = P(2) + 10.4, sz2 = -5.7, sy2 = f2; [-2.4, 2.4].forEach(function (d) { Cy(0.1, 0.1, 2.8, metal(0x8a8f96), sx2 + d, sy2 + 1.4, sz2); }); board(5.4, 1.5, 0.14, signTex(512, 140, '#2e7d32', [{ t: 'HERALD COLLEGE', s: 50, c: '#ffffff', y: 0.4, w: '800' }, { t: 'K A T H M A N D U', s: 24, c: '#d8f0c4', y: 0.76, w: '600' }]), 0x2e7d32, sx2, sy2 + 2.3, sz2);
+    [[-6.8, 0], [6.8, 0], [-2.8, 1], [2.8, 1]].forEach(function (q) { B(1.6, 0.7, 1.6, conc, x2 + q[0], f2 + 0.35, z2 + 8.2 + q[1] * 0.6); tree(x2 + q[0], f2 + 0.7, z2 + 8.2 + q[1] * 0.6, 0.45); });
+    for (i = 0; i < 6; i++) scooter(P(2) - 7 + i * 1.1, f2, -8.2, Math.PI / 2 + 0.3, [0xd8322a, 0xf4f1e8, 0x2b3140, 0x2f6fd4, 0x7cc142, 0x1d1f24][i]);
+    crowd(CAS('#2b3140'), 'talk', [[P(2) + 6.4, f2, -9.4, -0.6, '#f4f1e8'], [P(2) + 1.0, f2, -10.6, 0.7, '#2f6fd4']]); crowd(CAS('#7a1f2b'), 'stand', [[P(2) + 7.4, f2, -10.1, -1.7, '#7a3fd1'], [P(2) + 2.1, f2, -11.4, -2.5, '#3c9a4a'], [P(2) + 12, f2, -11.8, -2.2, '#d8322a']]);
+    SPOT[2] = { x: P(2) + 3.6, z: -6.4, y: f2, see: [sx2, sy2 + 2.3, sz2], seeW: 2.7 }; done();
+
+    /* JAN 2022 · Princelab, remote: a cut-away home room, warm plaster, a window with curtains, shelves of books, a rug and a plant, and his
+       desk with Next.js on the screen */
+    var x3 = P(3) + 1.5, z3 = -7.6; scene(x3); var f3 = pad(x3, z3, 9, 6, concrete(0x6b655c), 0.2);
+    B(9, 0.08, 6, wood(0xc58f5a), x3, f3 + 0.04, z3); B(9, 3.4, 0.2, plaster(0xf0e4d2), x3, f3 + 1.7, z3 - 2.9); B(0.2, 3.4, 6, plaster(0xf0e4d2), x3 - 4.4, f3 + 1.7, z3); B(9, 0.12, 0.24, white, x3, f3 + 0.06, z3 - 2.78);
+    B(0.1, 1.5, 2.0, white, x3 - 4.27, f3 + 2.0, z3 + 0.4); B(0.06, 1.3, 1.8, glowM(0xcfe6ff, 0.35, 0.9), x3 - 4.25, f3 + 2.0, z3 + 0.4); [-0.95, 0.95].forEach(function (d) { B(0.1, 2.0, 0.55, velvet(0xd8c6a5), x3 - 4.18, f3 + 1.9, z3 + 0.4 + d); });
+    var shelf = wood(0x8a5a34); B(1.9, 0.06, 0.34, shelf, x3 + 3.0, f3 + 2.2, z3 - 2.7); B(1.9, 0.06, 0.34, shelf, x3 + 3.0, f3 + 1.6, z3 - 2.7); [0x2f6fd4, 0xd8322a, 0xf2b705, 0x3c9a4a, 0x7a3fd1, 0x2b3140, 0xe85c9a, 0x8a5a34].forEach(function (cc, q) { B(0.14, 0.38 + (q % 3) * 0.05, 0.26, paint(cc, 0.7), x3 + 2.2 + q * 0.2, f3 + 2.43 + (q % 3) * 0.025, z3 - 2.68); B(0.14, 0.32 + (q % 2) * 0.06, 0.26, paint([0x2b3140, 0xf4f1e8, 0xc8302a][q % 3], 0.7), x3 + 2.2 + q * 0.2, f3 + 1.8 + (q % 2) * 0.03, z3 - 2.68); });
+    B(3.0, 0.02, 2.0, paint(0x7a2f2b, 0.95), x3 + 0.3, f3 + 0.09, z3 + 0.2, 0, false); plant(x3 + 3.7, f3 + 0.08, z3 - 1.9, 1.0); board(1.3, 0.92, 0.04, signTex(256, 180, '#14294f', [{ t: '{ }', s: 64, c: '#98b9fb', y: 0.42, f: '"JetBrains Mono", Menlo, monospace' }, { t: 'ship it', s: 26, c: '#f4b961', y: 0.8, w: '600' }]), 0x14294f, x3 - 1.6, f3 + 2.3, z3 - 2.78);
+    station(x3, f3 + 0.08, z3 - 0.95, codeT([[['// app/page.tsx', '#6b7a90']], [['export default ', K1], ['function ', K1], ['Page', K2], ['() {', K4]], [['  return ', K1], ['(', K4]], [['    <main ', K2], ['className', K3], ['=', K4], ['"flex gap-6 px-8"', K5], ['>', K2]], [['      <Hero ', K2], ['title', K3], ['={', K4], ['data.title', K4], ['} />', K2]], [['      <Pricing ', K2], ['plans', K3], ['={', K4], ['plans', K4], ['} />', K2]], [['    </main>', K2]], [['  );', K4]], [['}', K4]]]),
+      codeT([[['// tailwind.config.ts', '#6b7a90']], [['theme', K3], [': {', K4]], [['  extend', K3], [': {', K4]], [['    colors', K3], [': { ', K4], ['brand', K5], [' },', K4]], [['  },', K4]], [['}', K4]]]));
+    SPOT[3] = { x: x3, z: z3 - 1.1, y: f3 + 0.08, seat: f3 + 0.58, yaw: Math.PI - 0.5, see: [x3, f3 + 1.42, z3 - 2.3], seeW: 1.2 }; done();
+
+    /* JUN 2022 → NOW · PortPro, Lalitpur: a glass-fronted office with its sign, the drayOS dispatch board, and the drayage yard: containers two
+       and three high under a rubber-tyred gantry, a truck with a box on its chassis, light masts, crew in hi-vis */
+    var x4 = P(4); scene(x4); var sp4 = span(x4 + 8, -14, 50, 18), yt = sp4[1] + 0.06; B(50, yt - sp4[0] + 1.2, 18, asphalt, x4 + 8, (sp4[0] - 1.2 + yt) / 2, -14, 0, false);
+    var ribT = tex(512, 128, function (g, w, h) { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); for (var x = 0; x < w; x += 12) { g.fillStyle = 'rgba(0,0,0,.16)'; g.fillRect(x, 0, 4, h); g.fillStyle = 'rgba(255,255,255,.5)'; g.fillRect(x + 5, 0, 2, h); } g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(0, 0, w, 7); g.fillRect(0, h - 7, w, 7); g.fillRect(0, 0, 9, h); g.fillRect(w - 9, 0, 9, h); for (var q = 0; q < 30; q++) { g.fillStyle = 'rgba(110,60,30,' + (0.1 + s.h2(q, 171) * 0.2).toFixed(2) + ')'; g.fillRect(s.h2(q, 172) * w, s.h2(q, 173) * h, 2 + s.h2(q, 174) * 5, 6 + s.h2(q, 175) * 30); } g.fillStyle = 'rgba(255,255,255,.75)'; g.font = '700 16px Inter, sans-serif'; g.fillText('TGHU 482113 4', 22, 30); });
+    var cs = [[x4 + 8.4, -11.4, 0, '#2f6fb3'], [x4 + 8.4, -11.4, 1, '#c43b2f'], [x4 + 21.2, -11.4, 0, '#e2862b'], [x4 + 8.4, -14.6, 0, '#2f8a4a'], [x4 + 8.4, -14.6, 1, '#7d8792'], [x4 + 21.2, -14.6, 0, '#2f6fb3'], [x4 + 21.2, -14.6, 1, '#1f9bd7'], [x4 + 14.8, -17.8, 0, '#c43b2f'], [x4 + 14.8, -17.8, 1, '#e2b23c'], [x4 + 14.8, -17.8, 2, '#2f8a4a'], [x4 + 27.6, -17.8, 0, '#7d8792'], [x4 + 27.6, -17.8, 1, '#c43b2f']].map(function (q) { return [q[0], yt + 1.3 + q[2] * 2.62, q[1], q[3], 0]; });
+    var crane = paint(0xe8a317, 0.5); [[x4 + 3.6, -9.2], [x4 + 3.6, -20.4], [x4 + 26.4, -9.2], [x4 + 26.4, -20.4]].forEach(function (q) { B(0.6, 13.2, 0.6, crane, q[0], yt + 6.6, q[1]); B(1.2, 0.9, 1.4, dark, q[0], yt + 0.45, q[1]); }); [-9.2, -20.4].forEach(function (cz) { B(23.4, 0.9, 0.7, crane, x4 + 15, yt + 13.4, cz); }); [x4 + 3.6, x4 + 26.4].forEach(function (cx0) { B(0.7, 0.9, 11.6, crane, cx0, yt + 13.4, -14.8); });
+    B(2.4, 1.2, 11.6, paint(0x3a3f4a), x4 + 12, yt + 12.6, -14.8); B(0.08, 3.6, 0.08, dark, x4 + 12, yt + 10.4, -14.8); B(2.6, 0.3, 2.6, crane, x4 + 12, yt + 8.5, -14.8);
+    var tx4 = x4 + 15, ty4 = s.roadH(tx4) + 0.17, tilt = Math.atan2(s.roadH(tx4 + 5) - s.roadH(tx4 - 5), 10), truck = new T3.Group(); truck.position.set(tx4, ty4, -1.85); truck.rotation.z = tilt; G.add(truck); var prevG = G; G = truck;
+    var cab = carPaint(0xc63a2b); B(2.3, 2.3, 2.4, cab, 6.3, 1.95, 0); B(1.4, 0.82, 2.44, glass, 6.8, 2.55, 0); B(0.06, 0.9, 2.0, glass, 7.47, 2.5, 0); B(0.5, 0.95, 2.2, metal(0x9aa0a8), 7.65, 1.35, 0); B(12.4, 0.3, 1.0, dark, 0.4, 0.95, 0); Cy(0.08, 0.08, 2.4, metal(0xc9ccd2), 5.1, 3.1, 1.34);
+    [6.3, 3.3, 2.2, -4.5, -5.6].forEach(function (wx) { [0.98, -0.98].forEach(function (wz) { put(new T3.CylinderGeometry(0.5, 0.5, 0.42, 18), tyre, wx, 0.5, wz, 0, true, Math.PI / 2); }); });
+    [0.8, -0.8].forEach(function (wz) { put(box, glowM(0xfff1c8, 0.15, 2.4), 7.92, 1.2, wz).scale.set(0.06, 0.22, 0.36); put(box, glowM(0xd8322a, 0.2, 1.4), -5.8, 1.1, wz).scale.set(0.06, 0.24, 0.3); }); G = prevG;
+    var cw = new T3.Vector3(-1.0, 2.42, 0).applyEuler(truck.rotation).add(truck.position); cs.push([cw.x, cw.y, cw.z, '#1f6fd1', tilt]);
+    var cim = new T3.InstancedMesh(box, new T3.MeshStandardMaterial({ map: ribT, roughness: 0.6, metalness: 0.3, envMap: s.envTex(T3), envMapIntensity: 0.4 }), cs.length), cdm = new T3.Object3D(), ccol = new T3.Color();
+    cs.forEach(function (q, k) { cdm.position.set(q[0], q[1], q[2]); cdm.rotation.set(0, 0, q[4]); cdm.scale.set(12.2, 2.6, 2.44); cdm.updateMatrix(); cim.setMatrixAt(k, cdm.matrix); ccol.setStyle(q[3]); cim.setColorAt(k, ccol); }); cim.castShadow = cim.receiveShadow = true; cim.instanceMatrix.needsUpdate = true; G.add(cim);
+    var ox = x4 - 9, oz = -15, osp = span(ox, oz, 12, 8), otop = osp[0] + 7.4, ofc = concrete(0xe6e8ea); B(12, otop - osp[0] + 1, 8, ofc, ox, (osp[0] - 1 + otop) / 2, oz);
+    for (fl = 0; fl < 2; fl++) { B(11.2, 2.6, 0.08, fl ? s.sWin : glass, ox, osp[0] + 1.9 + fl * 3.3, oz + 4.04); for (c = 0; c < 7; c++) B(0.1, 2.6, 0.14, metal(0x3a3f4a), ox - 5.6 + c * 1.87, osp[0] + 1.9 + fl * 3.3, oz + 4.08); B(12.2, 0.5, 0.3, ofc, ox, osp[0] + 3.45 + fl * 3.3, oz + 4.1); }
+    board(6.4, 1.4, 0.2, signTex(512, 112, '#101826', [{ t: 'PortPro', s: 74, c: '#ffffff', y: 0.55, w: '800' }]), 0x101826, ox, otop + 0.75, oz + 3.2); plant(ox - 3.4, osp[0], oz + 5.0, 1.2); plant(ox + 3.4, osp[0], oz + 5.0, 1.2);
+    var boardT = tex(640, 368, function (g, w, h) { g.fillStyle = '#0d1424'; g.fillRect(0, 0, w, h); g.fillStyle = '#16213a'; g.fillRect(0, 0, w, 44); g.fillStyle = '#ffffff'; g.font = '700 22px Inter, sans-serif'; g.textBaseline = 'middle'; g.fillText('drayOS', 18, 22); g.fillStyle = '#98b9fb'; g.font = '600 15px Inter, sans-serif'; g.fillText('DISPATCHER BOARD', 104, 23);
+      g.fillStyle = '#6b7a90'; g.font = '600 13px "JetBrains Mono", Menlo, monospace'; ['LOAD', 'CONTAINER', 'FROM → TO', 'STATUS'].forEach(function (t, q) { g.fillText(t, [18, 110, 270, 470][q], 62); });
+      [['L-2041', 'MSCU 482113', 'Port → Yard', 'DISPATCHED', '#2f6fd4'], ['L-2042', 'TGHU 917045', 'Rail → DC 4', 'AT PORT', '#e2862b'], ['L-2043', 'CMAU 330918', 'Yard → DC 2', 'EN ROUTE', '#3c9a4a'], ['L-2044', 'OOLU 604772', 'Port → Rail', 'DELIVERED', '#7d8792'], ['L-2045', 'MAEU 225610', 'DC 1 → Port', 'DISPATCHED', '#2f6fd4'], ['L-2046', 'HLXU 871204', 'Rail → Yard', 'EN ROUTE', '#3c9a4a']].forEach(function (rw, q) { var y = 96 + q * 44; g.fillStyle = q % 2 ? '#111b30' : '#0f182b'; g.fillRect(8, y - 18, w - 16, 38); g.fillStyle = '#dbe2eb'; g.font = '600 15px "JetBrains Mono", Menlo, monospace'; g.fillText(rw[0], 18, y); g.fillText(rw[1], 110, y); g.font = '500 15px Inter, sans-serif'; g.fillText(rw[2], 270, y); g.fillStyle = rw[4]; g.fillRect(470, y - 12, 128, 24); g.fillStyle = '#ffffff'; g.font = '700 12px Inter, sans-serif'; g.fillText(rw[3], 480, y + 1); }); });
+    var scx = x4 + 3.0, scz = -7.4, scy = yt; [-2.1, 2.1].forEach(function (d) { B(0.16, 2.8, 0.16, dark, scx + d, scy + 1.4, scz - 0.1); }); B(4.5, 2.66, 0.14, dark, scx, scy + 2.65, scz - 0.08); put(new T3.PlaneGeometry(4.3, 2.47), screenM(boardT, 1.15), scx, scy + 2.65, scz, 0, false);
+    board(2.6, 0.62, 0.14, signTex(512, 96, '#101826', [{ t: 'PortPro', s: 62, c: '#ffffff', y: 0.56, w: '800' }]), 0x101826, scx, scy + 4.35, scz - 0.08);
+    [[x4 + 31, -8.6], [x4 - 2, -21]].forEach(function (q) { Cy(0.14, 0.2, 12, metal(0x8a8f96), q[0], yt + 6, q[1]); B(1.6, 0.4, 0.6, dark, q[0], yt + 12, q[1]); put(new T3.PlaneGeometry(1.4, 0.3), glowM(0xfff3d6, 0.2, 2.6), q[0], yt + 11.78, q[1] + 0.31, 0, false); });
+    crowd({ h: 1, top: '#ffffff', low: '#2a2f3a', vest: '#f28c28', beanie: '#f2b705', shoe: '#4a3020' }, 'stand', [[x4 + 10.5, yt, -6.6, -0.6, '#4a5568'], [x4 + 18.6, yt, -8.0, 2.4, '#2f6fd4']]); crowd({ h: 1, top: '#ffffff', low: '#2a2f3a', vest: '#d7f23a', shoe: '#4a3020' }, 'talk', [[x4 + 19.6, yt, -7.4, -2.0, '#2b3140']]);
+    SPOT[4] = { x: x4 + 1.0, z: -5.8, y: yt, see: [scx, scy + 2.65, scz], seeW: 2.3 }; done();
+
+    /* 2023 · the AAA Scholarship: a stage under a lighting truss, the award banner between velvet curtains, marigold garlands along the stage
+       front, a podium with flowers, guests at a draped table, the presenter with the certificate, and an audience in rows */
+    var x5 = P(5) + 2, z5 = -12.2; scene(x5); var sp5 = span(x5 - 2, -12.5, 20, 15), fl5 = sp5[1] + 0.06; B(20, fl5 - sp5[0] + 1.2, 15, concrete(0xbab3a6), x5 - 2, (sp5[0] - 1.2 + fl5) / 2, -12.5, 0, false); var st5 = fl5 + 1.0;
+    B(12, 1.0, 6, wood(0x8a5a34), x5, fl5 + 0.5, z5); B(12.04, 0.94, 0.06, velvet(0x5b1a1a), x5, fl5 + 0.47, z5 + 3.0); B(11.6, 0.04, 5.2, paint(0x9e2a1e, 0.95), x5, st5 + 0.02, z5 + 0.2);
+    for (i = 0; i < 3; i++) B(2, 0.33, 0.5, wood(0x8a5a34), x5 - 4.5, st5 - 0.17 - i * 0.33, z5 + 3.25 + i * 0.5);
+    var banT = function (yr, sub) { return tex(1024, 360, function (g, w, h) { var gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#13234a'); gr.addColorStop(1, '#2a1640'); g.fillStyle = gr; g.fillRect(0, 0, w, h); g.strokeStyle = '#d9b44a'; g.lineWidth = 8; g.strokeRect(14, 14, w - 28, h - 28); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#d9b44a'; g.font = '600 34px Inter, sans-serif'; g.fillText('HERALD COLLEGE KATHMANDU', w / 2, 74); g.fillStyle = '#ffffff'; g.font = '800 96px Inter, sans-serif'; g.fillText('AAA SCHOLARSHIP', w / 2, 170); g.fillStyle = '#f4b961'; g.font = '700 54px Inter, sans-serif'; g.fillText(sub + ' · ' + yr, w / 2, 262); }); };
+    board(11, 3.9, 0.12, banT('2023', 'AWARD CEREMONY'), 0x13234a, x5, st5 + 2.55, z5 - 3.1); [-1, 1].forEach(function (k) { B(1.6, 4.9, 0.2, velvet(0x6e1414), x5 + k * 6.3, st5 + 2.45, z5 - 2.95); B(0.5, 4.9, 1.2, velvet(0x6e1414), x5 + k * 6.9, st5 + 2.45, z5 - 2.4); });
+    var truss = metal(0x2b2f36); B(14.4, 0.3, 0.3, truss, x5, st5 + 5.2, z5 - 1.2); [-1, 1].forEach(function (k) { B(0.3, 5.2 + 1.0, 0.3, truss, x5 + k * 7.2, fl5 + 3.1, z5 - 1.2); }); for (i = 0; i < 5; i++) { var lx0 = x5 - 4.8 + i * 2.4; Cy(0.14, 0.18, 0.4, dark, lx0, st5 + 4.85, z5 - 1.0); glow(lx0, st5 + 4.65, z5 - 0.9, 1.4, 0xfff0d0, 0.55); }
+    var mg = [paint(0xf29a1a, 0.8), paint(0xf2c230, 0.8)]; for (i = 0; i < 46; i++) { var gxx = x5 - 5.8 + i * 0.26, sag = Math.sin((i % 9) / 8 * Math.PI) * 0.3; Sp(0.09, 0.09, 0.09, mg[i % 2], gxx, st5 - 0.12 - sag, z5 + 3.06); }
+    B(0.9, 1.25, 0.7, wood(0x6b4a2e), x5 + 4.4, st5 + 0.62, z5 + 0.8); B(0.62, 0.32, 0.02, paint(0xd9b44a, 0.4), x5 + 4.4, st5 + 0.72, z5 + 1.16); Cy(0.02, 0.02, 0.45, dark, x5 + 4.3, st5 + 1.45, z5 + 0.8); plant(x5 + 5.4, st5, z5 + 1.2, 0.8, 0xf29a1a); plant(x5 - 5.6, st5, z5 - 1.8, 0.9, 0xf2c230);
+    B(4.8, 0.8, 1.1, S(0xf4f1e8, { r: 0.9 }), x5 - 1.4, st5 + 0.4, z5 - 1.9); B(4.82, 0.12, 1.12, paint(0x9e2a1e), x5 - 1.4, st5 + 0.74, z5 - 1.9); [x5 - 2.8, x5 - 1.4, x5].forEach(function (cx0) { chair(cx0, st5, z5 - 2.6, 0, paint(0xd9b44a, 0.5)); });
+    crowd({ h: 1, top: '#ffffff', low: '#2a2f3a', collar: '#e9ecef' }, 'sit', [[x5 - 2.8, st5, z5 - 2.65, 0, '#2b3140'], [x5 - 1.4, st5, z5 - 2.65, 0, '#e9dfcc'], [x5, st5, z5 - 2.65, 0, '#2b3140']]);
+    crowd({ h: 1, top: '#ffffff', low: '#2a2f3a', collar: '#e9ecef', tie: '#7a1f2b' }, 'hand', [[x5 - 3.9, st5, z5 + 0.8, -Math.PI / 2 + 0.25, '#2b3140']]); put(box, s.docPaper, x5 - 4.35, st5 + 1.32, z5 + 1.05, 0.3).scale.set(0.42, 0.32, 0.03);
+    var aud = []; for (r = 0; r < 3; r++) for (c = 0; c < 5; c++) { var ax0 = P(5) - 9.6 + c * 1.25 + r * 0.4, az0 = -6.0 - r * 1.35; aud.push([ax0, fl5, az0, 1.95, ['#2f6fd4', '#f4f1e8', '#d8322a', '#3c9a4a', '#7a3fd1', '#2b3140'][(r * 5 + c) % 6]]); chair(ax0, fl5, az0, 1.95, paint(0x2b2f36)); }
+    crowd(CAS(null, '#2a2f3a'), 'sit', aud);
+    SPOT[5] = { x: x5 - 5.3, z: z5 + 0.9, y: st5, yaw: 0.35, see: [x5, st5 + 2.55, z5 - 3.1], seeW: 5.5 }; done();
+    var x7 = P(7) + 3.6, z7 = -7.2; scene(x7); var g7 = pad(x7, z7 - 0.4, 13, 5.4, concrete(0xbab3a6), 0.1); [x7 - 3.2, x7 + 3.2].forEach(function (px) { B(0.16, 3.8, 0.16, dark, px, g7 + 1.9, z7); }); board(6.2, 2.2, 0.1, banT('2024', 'AWARDED AGAIN'), 0x13234a, x7, g7 + 2.6, z7 + 0.1);
+    B(0.9, 1.2, 0.7, wood(0x6b4a2e), x7 + 4.4, g7 + 0.6, z7 + 1.4); B(0.6, 0.3, 0.02, paint(0xd9b44a, 0.4), x7 + 4.4, g7 + 0.7, z7 + 1.76); plant(x7 - 3.9, g7, z7 + 0.6, 0.9, 0xf29a1a); plant(x7 + 3.9, g7, z7 + 0.6, 0.9, 0xf2c230); for (i = 0; i < 22; i++) Sp(0.08, 0.08, 0.08, mg[i % 2], x7 - 3.1 + i * 0.29, g7 + 3.62 - Math.sin((i % 11) / 10 * Math.PI) * 0.22, z7 + 0.18);
+    crowd({ h: 1, top: '#ffffff', low: '#2a2f3a', collar: '#e9ecef' }, 'clasp', [[x7 + 2.6, g7, z7 + 1.6, -0.4, '#2b3140']]);
+    SPOT[7] = { x: x7 - 4.6, z: z7 + 1.7, y: g7, yaw: 0.25, see: [x7, g7 + 2.6, z7], seeW: 3.1 }; done();
+
+    /* OCT 2023 · graduation: a stage with the class backdrop, podium and flowers; rows of graduates in black gowns, red stoles and mortarboards,
+       the front row standing with him; the caps go up together */
+    var x6 = P(6); scene(x6); var sp6 = span(x6 + 4, -11.5, 22, 13), f6 = sp6[1] + 0.05; B(22, f6 - sp6[0] + 1.2, 13, concrete(0xc9c5bc), x6 + 4, (sp6[0] - 1.2 + f6) / 2, -11.5, 0, false);
+    var bgx = x6 + 5.6, bgz = -13.6, sth = f6 + 0.8; B(14, 0.8, 4, wood(0x6b4a2e), bgx, f6 + 0.4, bgz + 0.5); B(14.04, 0.74, 0.06, velvet(0x14234a), bgx, f6 + 0.37, bgz + 2.5);
+    var gradT = tex(1024, 300, function (g, w, h) { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); g.fillStyle = '#16171b'; g.fillRect(0, 0, 150, h); g.fillRect(w - 150, 0, 150, h); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#2e7d32'; g.font = '700 40px Inter, sans-serif'; g.fillText('HERALD COLLEGE KATHMANDU', w / 2, 70); g.fillStyle = '#16171b'; g.font = '800 104px Inter, sans-serif'; g.fillText('GRADUATION', w / 2, 158); g.fillStyle = '#cf4a2c'; g.font = '700 46px Inter, sans-serif'; g.fillText('CLASS OF 2023', w / 2, 238); });
+    [bgx - 6.4, bgx + 6.4].forEach(function (px) { B(0.18, 4.6, 0.18, dark, px, sth + 2.3, bgz - 1.3); }); board(12.6, 3.7, 0.12, gradT, 0xffffff, bgx, sth + 2.7, bgz - 1.2); B(0.9, 1.2, 0.7, wood(0x4a3020), bgx + 4.6, sth + 0.6, bgz + 0.6); plant(bgx - 5.6, sth, bgz + 0.4, 0.9, 0xf29a1a); plant(bgx + 5.8, sth, bgz + 0.4, 0.9, 0xf2c230);
+    var GOWN = { h: 1, gown: true, mortar: true }, grads = [], seated = [], chairW = paint(0xf2f0ea, 0.7); for (c = 0; c < 6; c++) { var gx6 = x6 + 1.6 + c * 1.25, gz = -6.2; grads.push([gx6, f6, gz, (s.h2(c, 61) - 0.5) * 0.5]); }
+    for (r = 0; r < 2; r++) for (c = 0; c < 7; c++) { var sx6 = x6 + 0.6 + c * 1.2 + (r % 2) * 0.3, sz6 = -8.0 - r * 1.3; seated.push([sx6, f6, sz6, Math.PI + (s.h2(r * 9 + c, 62) - 0.5) * 0.2]); chair(sx6, f6, sz6, Math.PI, chairW); }
+    s.gradOn = crowd(GOWN, 'stand', grads); s.gradOff = crowd({ h: 1, gown: true }, 'stand', grads, true); s.gradOff.forEach(function (m0) { m0.visible = false; }); crowd(GOWN, 'sit', seated);
+    SPOT[6] = { x: x6 - 2.4, z: -5.6, y: f6, yaw: 0.2, see: [bgx, sth + 2.7, bgz - 1.2], seeW: 6.3 };
+    var capM = new T3.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), cg = new T3.Group(); cg.visible = false; G.add(cg); s.capsFly = { g: cg, caps: [] };
+    [[x6 - 2.4, -5.6]].concat(grads.map(function (p) { return [p[0], p[2]]; })).forEach(function (q, k) { var cm = new T3.Mesh(s.capG, capM); cm.castShadow = true; cg.add(cm); var c0 = { m: cm, x: q[0], z: q[1], vy: 8 + s.h2(k, 83) * 4, vx: (s.h2(k, 84) - 0.5) * 2.4, vz: (s.h2(k, 85) - 0.3) * 1.6, d: s.h2(k, 86) * 0.25, wr: [(s.h2(k, 87) - 0.5) * 14, (s.h2(k, 88) - 0.5) * 10] }; c0.y0 = f6 + 2.1; c0.yg = f6 + 0.12; c0.land = (c0.vy + Math.sqrt(c0.vy * c0.vy + 24 * (c0.y0 - c0.yg))) / 12; s.capsFly.caps.push(c0); });
+    done();
+
+    /* AUG 2025 → APR 2026 · final-year project supervision: a lab with lime-green pillars, rows of desks and monitors with students at them,
+       a team presenting at the screen, the whiteboard, and him at the head of the review table */
+    var x8 = P(8) + 5, z8 = -9.6; scene(x8); var f8 = pad(x8, z8, 15, 9, concrete(0x8d877c), 0.15);
+    B(15, 0.08, 9, S(0xd9d6cf, { map: 'concrete', r: 0.6 }), x8, f8 + 0.04, z8); B(15, 3.8, 0.2, plaster(0xf3f4f1), x8, f8 + 1.9, z8 - 4.4); B(0.2, 3.8, 9, plaster(0xf3f4f1), x8 - 7.4, f8 + 1.9, z8);
+    [-3.4, 2.8].forEach(function (d) { B(0.7, 3.8, 0.4, lime, x8 + d, f8 + 1.9, z8 - 4.15); });
+    var wbT = tex(512, 296, function (g, w, h) { g.fillStyle = '#f7f8f4'; g.fillRect(0, 0, w, h); g.lineWidth = 5; g.lineCap = g.lineJoin = 'round'; g.font = '700 26px Inter, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      var bx0 = function (x, y, t, cc) { g.strokeStyle = cc; g.strokeRect(x - 52, y - 28, 104, 56); g.fillStyle = cc; g.fillText(t, x, y); }, ar = function (xa, ya, xb, yb2, cc) { g.strokeStyle = cc; g.beginPath(); g.moveTo(xa, ya); g.lineTo(xb, yb2); var a = Math.atan2(yb2 - ya, xb - xa); g.lineTo(xb - 14 * Math.cos(a - 0.5), yb2 - 14 * Math.sin(a - 0.5)); g.moveTo(xb, yb2); g.lineTo(xb - 14 * Math.cos(a + 0.5), yb2 - 14 * Math.sin(a + 0.5)); g.stroke(); };
+      bx0(86, 70, 'UI', '#2a5bd7'); bx0(256, 70, 'API', '#2a5bd7'); bx0(426, 70, 'DB', '#2a5bd7'); ar(140, 70, 200, 70, '#2a5bd7'); ar(310, 70, 370, 70, '#2a5bd7'); bx0(150, 210, 'plan', '#d23b2f'); bx0(362, 210, 'tools', '#d23b2f'); ar(204, 196, 308, 196, '#d23b2f'); ar(308, 226, 204, 226, '#d23b2f'); g.fillStyle = '#1d1d1d'; g.font = '600 20px Inter, sans-serif'; g.fillText('agent loop', 256, 268); });
+    B(2.9, 1.7, 0.06, metal(0xb9c0c8), x8 + 5.2, f8 + 2.1, z8 - 4.26); put(new T3.PlaneGeometry(2.75, 1.58), s.moonMat(0.7, { map: wbT, roughness: 0.6 }, 0xffffff), x8 + 5.2, f8 + 2.1, z8 - 4.22, 0, false);
+    var slideT = tex(640, 360, function (g, w, h) { g.fillStyle = '#0f1a2e'; g.fillRect(0, 0, w, h); g.fillStyle = '#7cc142'; g.fillRect(0, 0, 12, h); g.fillStyle = '#ffffff'; g.font = '800 40px Inter, sans-serif'; g.textBaseline = 'middle'; g.fillText('FINAL YEAR PROJECT', 40, 60); g.fillStyle = '#98b9fb'; g.font = '600 24px Inter, sans-serif'; g.fillText('System architecture · demo', 40, 108);
+      [['Client', 60], ['API', 250], ['Model', 440]].forEach(function (b0) { g.strokeStyle = '#dbe2eb'; g.lineWidth = 3; g.strokeRect(b0[1], 180, 140, 70); g.fillStyle = '#dbe2eb'; g.font = '600 24px Inter, sans-serif'; g.fillText(b0[0], b0[1] + 30, 215); }); g.fillStyle = '#f4b961'; g.fillRect(205, 213, 40, 4); g.fillRect(395, 213, 40, 4); g.fillStyle = '#6b7a90'; g.font = '500 20px Inter, sans-serif'; g.fillText('Team presentation · supervisor review', 40, 310); });
+    B(3.0, 1.75, 0.08, dark, x8 - 0.3, f8 + 2.2, z8 - 4.24); put(new T3.PlaneGeometry(2.86, 1.6), screenM(slideT, 1.1), x8 - 0.3, f8 + 2.2, z8 - 4.19, 0, false);
+    var monT = codeT([[['// fyp/api/routes.ts', '#6b7a90']], [['router', K4], ['.post', K2], ['(', K4], ["'/predict'", K5], [', ', K4], ['auth', K3], [')', K4]], [['const ', K1], ['model ', K4], ['= ', K4], ['load', K2], ['()', K4]]]), monM = screenM(monT, 0.9), desks = [];
+    for (i = 0; i < 4; i++) desks.push([x8 - 6.2 + i * 1.7, z8 - 3.4, 0]); for (i = 0; i < 3; i++) desks.push([x8 - 6.6, z8 - 1.4 + i * 1.7, Math.PI / 2]);
+    var dtop = wood(0xd8c2a0); desks.forEach(function (d0, k) { var dx = Math.sin(d0[2]), dz = Math.cos(d0[2]); B(d0[2] ? 0.8 : 1.5, 0.05, d0[2] ? 1.5 : 0.8, dtop, d0[0], f8 + 0.76, d0[1]); B(d0[2] ? 0.6 : 1.3, 0.72, d0[2] ? 1.3 : 0.6, dark, d0[0] - dx * 0.05, f8 + 0.38, d0[1] - dz * 0.05); var mm0 = put(box, dark, d0[0] - dx * 0.22, f8 + 1.12, d0[1] - dz * 0.22, d0[2]); mm0.scale.set(0.62, 0.38, 0.04); put(new T3.PlaneGeometry(0.58, 0.34), monM, d0[0] - dx * 0.198, f8 + 1.12, d0[1] - dz * 0.198, d0[2], false); B(0.06, 0.18, 0.06, dark, d0[0] - dx * 0.24, f8 + 0.88, d0[1] - dz * 0.24); });
+    var deskSt = desks.slice(0, 5).map(function (d0, k) { var dx = Math.sin(d0[2]), dz = Math.cos(d0[2]); chair(d0[0] + dx * 0.55, f8, d0[1] + dz * 0.55, d0[2] + Math.PI, paint(0x30343c)); return [d0[0] + dx * 0.6, f8, d0[1] + dz * 0.6, d0[2] + Math.PI, ['#2f6fd4', '#f4f1e8', '#d8322a', '#3c9a4a', '#7a3fd1'][k]]; });
+    crowd(CAS(null, '#2a2f3a'), 'type', deskSt);
+    var tw = wood(0xc79a5e); B(5.2, 0.08, 1.5, tw, x8 + 0.8, f8 + 0.78, z8 + 1.0); [[-2.4, 0.6], [2.4, 0.6], [-2.4, -0.6], [2.4, -0.6]].forEach(function (q) { B(0.07, 0.78, 0.07, dark, x8 + 0.8 + q[0], f8 + 0.39, z8 + 1.0 + q[1]); });
+    var rev = []; for (c = 0; c < 3; c++) { [[-0.95, 0.15], [0.95, Math.PI - 0.15]].forEach(function (sd, q) { var sxx = x8 - 0.6 + c * 1.5, szz = z8 + 1.0 + sd[0]; chair(sxx, f8, szz, sd[1], paint(0x7d838c)); rev.push([sxx, f8, szz, sd[1] + (q ? -0.3 : 0.3), ['#f4f1e8', '#2b3140', '#e85c9a', '#1fb3c9', '#d8322a', '#2f6fd4'][c * 2 + q]]); }); B(0.42, 0.02, 0.3, dark, x8 - 0.6 + c * 1.5, f8 + 0.83, z8 + 0.7); }
+    crowd(CAS(null, '#2a2f3a'), 'sit', rev);
+    crowd(CAS('#2b3140'), 'point', [[x8 + 1.7, f8, z8 - 3.0, -Math.PI / 2 + 0.5, '#f4f1e8']]); crowd(CAS(null), 'stand', [[x8 + 2.7, f8, z8 - 2.4, -0.7, '#2b3140'], [x8 + 3.6, f8, z8 - 1.8, -1.0, '#d8322a']]);
+    [-4.4, -1.5, 1.5, 4.4].forEach(function (d) { Cy(0.02, 0.02, 0.6, dark, x8 + d, f8 + 3.5, z8 + 0.2, 6, false); Cy(0.24, 0.3, 0.2, dark, x8 + d, f8 + 3.15, z8 + 0.2); Cy(0.2, 0.2, 0.02, glowM(0xffe2b0, 0.4, 1.8), x8 + d, f8 + 3.04, z8 + 0.2, 16, false); });
+    chair(x8 - 2.4, f8, z8 + 1.0, Math.PI / 2, paint(0x30343c));
+    SPOT[8] = { x: x8 - 2.4, z: z8 + 1.0, y: f8, seat: f8 + 0.5, yaw: Math.PI / 2 - 0.55, see: [x8 - 0.3, f8 + 2.2, z8 - 4.2], seeW: 1.6 }; done();
+
+    /* NOW · his workstation on a deck on the mountain, and over it the orchestrator agent wired to its dispatcher, billing and CSR agents */
+    var x9 = P(9) + 1.5, z9 = -5.6; scene(x9); var f9 = pad(x9, z9, 5.4, 4.4, concrete(0x6b655c), 0.15); B(5.4, 0.08, 4.4, wood(0xa7774a), x9, f9 + 0.04, z9);
+    station(x9, f9 + 0.08, z9 + 0.4, codeT([[['// agents/orchestrator.ts', '#6b7a90']], [['const ', K1], ['agents ', K4], ['= [', K4], ['dispatcher', K5], [', ', K4], ['billing', K5], [', ', K4], ['csr', K5], [']', K4]], [['for ', K1], ['(const ', K1], ['task ', K4], ['of ', K1], ['queue', K4], [') {', K4]], [['  const ', K1], ['agent ', K4], ['= ', K4], ['route', K2], ['(task)', K4]], [['  const ', K1], ['out ', K4], ['= await ', K1], ['agent.run', K2], ['(task)', K4]], [['  await ', K1], ['review', K2], ['(out, task)', K4]], [['}', K4]]]),
+      codeT([[['$ agents status', '#6b7a90']], [['dispatcher ', K5], ['● running', K5]], [['billing    ', K5], ['● running', K5]], [['csr        ', K5], ['● idle', K3]], [['orchestrator ', K2], ['3 / 3 healthy', K4]]]));
+    SPOT[9] = { x: x9, z: z9 + 0.25, y: f9 + 0.08, seat: f9 + 0.58, yaw: Math.PI - 0.5 };
+    var ax = x9 + 6.4, ay = f9 + 4.2, az = z9 - 1.2, AG = { nodes: [], links: [], packets: [] };
+    var label = function (t) { var F0 = '600 52px Inter, system-ui, sans-serif', tr = 8, mc = document.createElement('canvas').getContext('2d'); mc.font = F0; var tw0 = t.split('').reduce(function (a, ch) { return a + mc.measureText(ch).width + tr; }, -tr), W0 = Math.ceil(tw0 + 72), H0 = 104;
+      var lt = tex(W0, H0, function (g, w, h) { g.fillStyle = 'rgba(8,14,24,.86)'; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(152,185,251,.55)'; g.lineWidth = 3; g.strokeRect(1.5, 1.5, w - 3, h - 3); g.fillStyle = '#ffffff'; g.font = F0; g.textBaseline = 'middle'; var x = (w - tw0) / 2; t.split('').forEach(function (ch) { g.fillText(ch, x, h / 2 + 2); x += g.measureText(ch).width + tr; }); });
+      var sp = new T3.Sprite(new T3.SpriteMaterial({ map: lt, transparent: true, depthWrite: false })); sp.scale.set(0.5 * W0 / H0, 0.5, 1); G.add(sp); return sp; };
+    [['ORCHESTRATOR', 0, 0, 0, 0.45, 0x98b9fb], ['DISPATCHER', -3.8, -1.7, 0.6, 0.3, 0xf4b961], ['BILLING', 4.0, -1.5, 0, 0.3, 0x93d694], ['CSR', 3.4, 2.1, -0.4, 0.3, 0xe8eef7]].forEach(function (n, q) {
+      var m = new T3.Mesh(sph, new T3.MeshBasicMaterial({ color: n[5] })); m.scale.setScalar(n[4]); G.add(m);
+      var gl = new T3.Sprite(new T3.SpriteMaterial({ map: s.glowTex(T3), transparent: true, depthWrite: false, blending: T3.AdditiveBlending, opacity: 0.6, color: n[5] })); gl.scale.set(n[4] * 7, n[4] * 7, 1); G.add(gl);
+      AG.nodes.push({ m: m, g: gl, l: label(n[0]), b: [ax + n[1], ay + n[2], az + n[3]], r: n[4], q: q }); });
+    var lineM = new T3.LineBasicMaterial({ color: 0x98b9fb, transparent: true, opacity: 0.8 }), lk = function (a, b, dash) { var g = new T3.BufferGeometry(); g.setAttribute('position', new T3.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3)); var l = new T3.Line(g, dash ? new T3.LineDashedMaterial({ color: 0xdbe2eb, transparent: true, opacity: 0.6, dashSize: 0.3, gapSize: 0.22 }) : lineM); l.frustumCulled = false; G.add(l); AG.links.push({ l: l, a: a, b: b, dash: dash }); };
+    lk(0, 1); lk(0, 2); lk(0, 3); lk(-1, 0, true); AG.laptop = [x9, f9 + 1.8, z9 - 0.9];
+    for (i = 0; i < 3; i++) { var pk = new T3.Mesh(sph, new T3.MeshBasicMaterial({ color: 0xffffff })); pk.scale.setScalar(0.13); G.add(pk); AG.packets.push(pk); }
+    s.agents = AG; SPOT[9].see = [ax, ay, az]; done();
+  }
+  /* per frame: scenes far from the walk are hidden; the bus idles, caps fly, screens flicker, agent nodes bob and pass packets along their links */
+  storyFrame(T, cx) {
+    var s = this, o = s.sto, en = s.en || 0, nf = s.nf || 0;
+    if (s.SG) for (var gi = 0; gi < s.SG.length; gi++) { var dgx = s.SG[gi].userData.x - cx; s.SG[gi].visible = dgx > -170 && dgx < 330; }
+    if (s.envMats) for (var ei = 0; ei < s.envMats.length; ei++) s.envMats[ei].envMapIntensity = s.envMats[ei].userData.env * (1 - 0.85 * nf);
+    if (s.sGlow) for (var gm = 0; gm < s.sGlow.length; gm++) s.sGlow[gm].emissiveIntensity = s.sGlow[gm].userData.g0 + s.sGlow[gm].userData.g1 * en; if (s.sWin) s.sWin.emissiveIntensity = 1.6 * en;
+    if (s.bus) s.bus.position.y = s.busY + (o.k === 1 ? 0.025 * Math.sin(T * 45) : 0);
+    if (s.screens) { for (var i = 0; i < s.screens.length; i++) s.screens[i].emissiveIntensity = 1.0 + 0.12 * Math.sin(T * 9 + i * 2); for (i = 0; i < s.screenGlow.length; i++) s.screenGlow[i].material.opacity = 0.25 + 0.45 * en; }
+    if (s.capsFly) { var F = s.capsFly, ft = o.k === 6 && s.tossT != null ? T - s.tossT : -1; F.g.visible = ft >= 0; if (s.gradOn) { s.gradOn.forEach(function (m0) { m0.visible = !(ft > 0.15); }); s.gradOff.forEach(function (m0) { m0.visible = ft > 0.15; }); }
+      if (ft >= 0) F.caps.forEach(function (c) { var t = Math.max(0, ft - c.d), u = Math.min(t, c.land), y = Math.max(c.yg, c.y0 + c.vy * u - 6 * u * u); c.m.position.set(c.x + c.vx * u, y, c.z + c.vz * u); c.m.rotation.set(t < c.land ? c.wr[0] * u : 0, c.wr[1] * u, 0); }); }
+    var A = s.agents; if (A) { var hot = o.k === 9 ? 1 : 0; s.agK = (s.agK || 0) + (hot - (s.agK || 0)) * 0.05; var P = [];
+      A.nodes.forEach(function (n, q) { var y = n.b[1] + 0.25 * Math.sin(T * 1.3 + q * 1.7), sc = n.r * (1 + 0.06 * Math.sin(T * 3 + q) + (q === 0 ? 0.12 * s.agK : 0)); n.m.position.set(n.b[0], y, n.b[2]); n.m.scale.setScalar(sc); n.g.position.copy(n.m.position); n.g.material.opacity = 0.35 + 0.45 * s.agK + 0.2 * en; n.l.position.set(n.b[0], y + n.r + 0.55, n.b[2]); P.push(n.m.position); });
+      A.links.forEach(function (k) { var a = k.a < 0 ? { x: A.laptop[0], y: A.laptop[1], z: A.laptop[2] } : P[k.a], b = P[k.b], at = k.l.geometry.attributes.position; at.setXYZ(0, a.x, a.y, a.z); at.setXYZ(1, b.x, b.y, b.z); at.needsUpdate = true; if (k.dash) k.l.computeLineDistances(); });
+      A.packets.forEach(function (p, q) { var a = P[0], b = P[q + 1], f = (T * 0.45 + q / 3) % 1, g = q % 2 ? f : 1 - f; p.position.set(a.x + (b.x - a.x) * g, a.y + (b.y - a.y) * g, a.z + (b.z - a.z) * g); }); }
   }
   flowTex(T3) { var c = document.createElement('canvas'); c.width = 64; c.height = 256; var g = c.getContext('2d'); g.fillStyle = '#ffffff'; g.fillRect(0, 0, 64, 256); for (var i = 0; i < 140; i++) { var x = this.h2(i, 1) * 64, y = this.h2(i, 2) * 256, l = 10 + this.h2(i, 3) * 30; g.strokeStyle = 'rgba(' + (this.h2(i, 4) > 0.5 ? '255,255,255' : '120,160,200') + ',' + (0.25 + this.h2(i, 5) * 0.4) + ')'; g.lineWidth = 1 + this.h2(i, 6) * 1.5; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (this.h2(i, 7) - 0.5) * 4, y + l); g.stroke(); } var t = (function (t) { t.colorSpace = T3.SRGBColorSpace; return t; })(new T3.CanvasTexture(c)); t.wrapS = t.wrapT = T3.RepeatWrapping; return t; }
   leafTex(T3) { var c = document.createElement('canvas'); c.width = c.height = 128; var g = c.getContext('2d'); g.clearRect(0, 0, 128, 128); for (var i = 0; i < 420; i++) { var x = 10 + this.h2(i, 1) * 108, y = 10 + this.h2(i, 2) * 108, dx = x - 64, dy = y - 64; if (dx * dx + dy * dy > 54 * 54 * (0.55 + this.h2(i, 8) * 0.5)) continue; var r = 3 + this.h2(i, 3) * 5, l = 28 + this.h2(i, 4) * 30; g.fillStyle = 'hsl(' + (95 + this.h2(i, 5) * 30) + ',' + (40 + this.h2(i, 6) * 25) + '%,' + l + '%)'; g.beginPath(); g.ellipse(x, y, r, r * 0.55, this.h2(i, 7) * 3.1, 0, 6.3); g.fill(); } var t = (function (t) { t.colorSpace = T3.SRGBColorSpace; return t; })(new T3.CanvasTexture(c)); return t; }
@@ -945,7 +1321,7 @@ export class JourneyEngine {
     var s = this, W = 540, D = 330, nx = 270, nz = 165, geo = new T3.PlaneGeometry(W, D, nx, nz); geo.rotateX(-Math.PI / 2);
     var P = geo.attributes.position, N = P.count, cols = new Float32Array(N * 3), L = s.lin.bind(s), bund = L('#5f7a2e'), dirt = L('#b89f6b');
     var tints = [L('#9fd24c'), L('#8fc443'), L('#aedb5a'), L('#86bb42'), L('#98cc4a'), L('#b5df62')];
-    for (var i = 0; i < N; i++) { var x = P.getX(i) + 190, z = P.getZ(i) - 100; P.setX(i, x); P.setZ(i, z); var T = s.zones(Math.max(0, x)).T * (1 - s.forest(x)), far = s.ss(150, 185, -z), past = s.pasture(x, -z); var nr = 0; for (var k = 0; k < 2; k++) if (Math.abs(x - s.rivX(k, z)) < 7.5) nr = 1; var can = Math.abs(-z - 46) < 2.2 && x > s.CANX - 2 && x < s.CANX + 50; var y = s.H(x, z) + 0.22; if (T < 0.5 || far > 0.6 || nr || can || past > 0.5 || Math.abs(z) < 5 || z > 46) y -= 3; P.setY(i, y);
+    for (var i = 0; i < N; i++) { var x = P.getX(i) + 190, z = P.getZ(i) - 100; P.setX(i, x); P.setZ(i, z); var T = s.zones(Math.max(0, x)).T * (1 - s.forest(x)), far = s.ss(150, 185, -z), past = s.pasture(x, -z); var nr = 0; for (var k = 0; k < 2; k++) if (Math.abs(x - s.rivX(k, z)) < 7.5) nr = 1; var can = Math.abs(-z - 46) < 2.2 && x > s.CANX - 2 && x < s.CANX + 50; var y = s.H(x, z) + 0.22; if (T < 0.5 || far > 0.6 || nr || can || past > 0.5 || Math.abs(z) < 5 || z > 46 || s.padHit(x, z)) y -= 3; P.setY(i, y);
       var plot = s.h2(Math.floor(x / 7), Math.floor(z / 11.4)), c = tints[Math.floor(plot * 6) % 6], bx = Math.pow(0.5 + 0.5 * Math.sin(x * 0.9), 14), bz = Math.pow(0.5 + 0.5 * Math.sin(z * 0.55), 14), b = Math.min(1, bx + bz); if (plot > 0.93) c = dirt; c = s.lerp3(c, bund, b * 0.9); cols[i * 3] = c[0]; cols[i * 3 + 1] = c[1]; cols[i * 3 + 2] = c[2]; }
     geo.setAttribute('color', new T3.BufferAttribute(cols, 3)); geo.computeVertexNormals();
     var m = new T3.Mesh(geo, new T3.MeshStandardMaterial({ vertexColors: true, roughness: 1, map: s.paddyTex(T3) })); m.receiveShadow = true; s.scene.add(m);
@@ -973,18 +1349,26 @@ export class JourneyEngine {
     /* camera: a walker's eye on the trail, looking across the land; mouse tilts the view */
     var AER = s.ss(s.tp(9) + 0.005, s.tp(10) - 0.01, Z.t), ey = rh + 14 + 5 * Z.M - 8 * Z.T + 110 * AER, look = s.tmpV;
     s.cam3.position.set(cx - 4 + s.mx * 2, ey + s.my * -1.5, 50 + Z.V * 8 - 22 * Z.T);
-    look.set(cx + 30 + s.mx * 22 - 22 * Z.T + 120 * AER, rh + 15 - s.my * 9 + 42 * Z.M + 2 * Z.T + 110 * AER, -240 + 50 * Z.T - 700 * AER); s.cam3.lookAt(look);
+    look.set(cx + 30 + s.mx * 22 - 22 * Z.T + 120 * AER, rh + 15 - s.my * 9 + 42 * Z.M + 2 * Z.T + 110 * AER, -240 + 50 * Z.T - 700 * AER);
+    /* at a chapter stop the camera pushes in to a medium shot of him, framed against the chapter's scene; on the move it pulls back to the wide shot */
+    var dol = s.pose * s.pose * (3 - 2 * s.pose) * (1 - AER), F = s.focus; if (dol > 0.001 && F) { var SPc = s.spot || {}, S3 = SPc.see || [F[0] + 6, F[1] + 1, F[2] - 8], lk = SPc.lk == null ? 0.3 : SPc.lk;
+      /* distance from the lens so he fills about a fifth of the frame height (a little more on a portrait phone) */
+      var fh = 2 * (s.walkH || 1), dist = fh / ((s.VW < s.VH ? 0.26 : 0.23) * 2 * Math.tan(s.cam3.fov * Math.PI / 360)), dv = s.tmpD.set(-0.3, 0.17, 0.94).normalize().multiplyScalar(dist);
+      s.cam3.position.lerp(dv.add(s.tmpE.set(F[0], F[1], F[2])), dol); look.lerp(s.tmpD.set(F[0] + (S3[0] - F[0]) * lk, F[1] + 0.3 + (S3[1] - F[1] - 0.3) * lk, F[2] + (S3[2] - F[2]) * lk), dol); }
+    s.cam3.lookAt(look);
     /* light and atmosphere by zone and mode */
     var sky = s.skyMat.uniforms, lerpC = function (a, b, f) { return new T3.Color(a).lerp(new T3.Color(b), f); };
     var top = lerpC(0x5e9ce0, 0x0f1b3d, en).lerp(new T3.Color(0x05091a), nf), hz = lerpC(0xd3e5f3, 0xa9a6bf, en).lerp(new T3.Color(0x121a30), nf);
     var hazeT = 0.3 * Z.T + 0.15 * Z.V; top.lerp(hz, hazeT * 0.3); sky.hzPow.value = 0.65 + 0.3 * Z.T; sky.hzBand.value = 0.12 * Z.T; if (s.farMesh) { s.farMesh.material.opacity = 1 - s.ss(0.3, 0.9, Z.T); s.farMesh.visible = Z.T < 0.9; } if (s.himal) { var hv = Z.M; s.himal.visible = hv > 0.62; if (s.routeGroup) s.routeGroup.visible = s.himal.visible; s.himalLbl = s.ss(0.8, 0.98, hv); }
     sky.top.value.copy(top); sky.hz.value.copy(hz); sky.sunCol.value.copy(lerpC(0xfff0c8, 0xffa864, en).multiplyScalar(1 - nf));
     var sunDir = new T3.Vector3(0.45 - 0.25 * en + 0.3 * Z.M, 0.42 - 0.3 * en - 0.2 * Z.M, -0.8).normalize(); sky.sunDir.value.copy(sunDir);
-    s.sun.position.copy(s.cam3.position).addScaledVector(sunDir, 260); s.sun.target.position.set(cx + 40, rh, -80); s.sun.color.copy(lerpC(0xfff2dc, 0xf3cdb0, en).lerp(new T3.Color(0x9fb4e6), nf)); s.sun.intensity = (1.25 - 0.6 * en + 0.6 * Z.M) * (1 - 0.7 * nf);
+    s.sun.position.copy(s.cam3.position).addScaledVector(sunDir, 260); s.sun.target.position.set(cx + 40, rh, -80); s.sun.color.copy(lerpC(0xfff2dc, 0xf3cdb0, en).lerp(new T3.Color(0x9fb4e6), nf)); s.sun.intensity = (1.25 - 0.6 * en + 0.6 * Z.M) * (1 - 0.7 * nf); var gk = s.sto.k >= 0 && s.chapters()[s.sto.k].gold ? dol * (1 - en) : 0; if (gk > 0.01) { s.sun.color.lerp(s.tmpC.set(0xffc58a), 0.45 * gk); s.hemi.color.lerp(s.tmpC.set(0xffe2c2), 0.25 * gk); }
+    /* a soft front fill from behind the lens, so facades facing the walk are not lost against the backlit sky; stronger at a chapter stop */
+    s.fill.position.copy(s.cam3.position).add(s.tmpE.set(-40, 70, 120)); s.fill.target.position.copy(look); s.fill.intensity = (0.35 + 0.35 * dol) * (1 - 0.85 * nf); s.fill.color.copy(lerpC(0xfff1e2, 0x9fb4e6, nf));
     s.hemi.color.copy(lerpC(0xbfd8ff, 0x7087c4, en)); s.hemi.groundColor.copy(lerpC(0x5a6a46, 0x2a2e3a, en)); s.hemi.intensity = (0.62 + 0.08 * en) * (1 - 0.2 * nf);
-    s.scene.fog.color.copy(hz).lerp(top, 0.5 * en); s.scene.fog.near = 130 + 60 * Z.M; s.scene.fog.far = 860 - 580 * Z.T - 220 * Z.V - 120 * Z.H - 140 * en + 2300 * Z.M + 260 * Z.H * s.ss(s.tp(6), s.tp(8), Z.t);
+    s.scene.fog.color.copy(hz).lerp(top, 0.5 * en); s.scene.fog.near = 130 + 60 * Z.M; s.scene.fog.far = 860 - 580 * Z.T - 220 * Z.V - 120 * Z.H - 140 * en + 2300 * Z.M + 260 * Z.H * s.ss(s.tp(6), s.tp(8), Z.t); s.scene.fog.far += 1500 * dol * Z.T; s.scene.fog.near += 220 * dol * Z.T;
     s.sky.position.copy(s.cam3.position); if (s.sunSpr) { s.sunSpr.position.copy(s.cam3.position).addScaledVector(sunDir, 4200); s.sunHalo.position.copy(s.sunSpr.position); s.sunSpr.material.color.copy(lerpC(0xfff1cf, 0xffb27a, en)); s.sunHalo.material.color.copy(lerpC(0xffd9a0, 0xff9a60, en)); s.sunSpr.material.opacity = (0.32 - 0.1 * en) * (1 - nf); s.sunHalo.material.opacity = (0.05 + 0.04 * en) * (1 - nf); if (s.moon) { var md = new T3.Vector3(0.42, 0.26, -0.85).normalize(); s.moon.position.copy(s.cam3.position).addScaledVector(md, 4300); s.moon.material.opacity = 0.95 * nf; s.moonHalo.position.copy(s.moon.position); s.moonHalo.material.opacity = 0.14 * nf; s.stars.position.copy(s.cam3.position); s.stars.material.opacity = 0.9 * nf; } }
-    s.R.toneMappingExposure = 0.84 - 0.08 * en - 0.08 * nf;
+    s.R.toneMappingExposure = 0.84 - 0.08 * en - 0.08 * nf; sky.invTM.value = s.pp ? 1 : 0; sky.expo.value = s.R.toneMappingExposure;
     if (s.winOn) s.winOn.material.emissiveIntensity = 1.6 * en; if (s.winOn2) s.winOn2.material.emissiveIntensity = 1.6 * en; if (s.winOn3) s.winOn3.material.emissiveIntensity = 1.6 * en; if (s.winOn4) s.winOn4.material.emissiveIntensity = 1.6 * en;
     if (s._wt) { s._wt.offset.x = T * 0.012; s._wt.offset.y = T * 0.008; } if (s.stadGlow) for (var sg = 0; sg < s.stadGlow.length; sg++) { s.stadGlow[sg].material.opacity = 0.75 * nf; if (s.stadLights) s.stadLights[sg].intensity = 900 * nf; } if (s.lampM) { s.lampM.emissiveIntensity = 0.15 + 2.2 * en; s.lampGlow.material.opacity = 0.3 * en; } if (s.lampPool) s.lampPool.material.opacity = 0.5 * nf;
     if (s.lampSpots && s.lampPts && s.lampPts.length) { var li = 0; for (var lk = 0; lk < s.lampPts.length; lk++) if (s.lampPts[lk][0] < cx) li = lk; for (var lq = 0; lq < 3; lq++) { var LP = s.lampPts[Math.max(0, Math.min(s.lampPts.length - 1, li - 1 + lq))], SL = s.lampSpots[lq]; SL.position.set(LP[0], LP[1] + 7.0, LP[2] + 2.0); SL.target.position.set(LP[0], LP[1], LP[2] + 4.5); SL.intensity = 220 * nf; } } if (s.cloudMat) { s.cloudMat.color.copy(lerpC(0xffffff, 0xb9a9b8, en)); s.cloudMat.opacity = 0.6 * (1 - nf); }
@@ -1002,23 +1386,100 @@ export class JourneyEngine {
     /* trail progress, pins and the walker */
     var done = Math.floor(cx / (s.SW / s.trailN)); s.trailDone.geometry.setDrawRange(0, Math.max(0, Math.min(s.trailN + 1, done)));
     s.trailDone.material.color.set(s.mode > 0.5 ? 0xf4b961 : 0x98b9fb);
-    s.stepWalker(cx, rh, cam, T); if (s.walkerMat) { s.walkerMat.emissiveIntensity = 0.5 * (s.nf || 0) + 0.1 * (s.en || 0); } if (s.dharaMat) s.dharaMat.emissiveIntensity = 0.35 * (s.nf || 0);
-    if (s.au) s.audioFrame(Z, en, cx, T);
+    s.stepWalker(cx, rh, cam, T); s.storyFrame(T, cx); if (s.walkerMat) { s.walkerMat.emissiveIntensity = 0.5 * (s.nf || 0) + 0.1 * (s.en || 0); } if (s.dharaMat) s.dharaMat.emissiveIntensity = 0.35 * (s.nf || 0);
     s.peakScr = []; if (s.peaks && s.himal && s.himal.visible) for (var pk = 0; pk < s.peaks.length; pk++) { var PP = s.peaks[pk], pv = new T3.Vector3(PP.wx, PP.wy, PP.wz).project(s.cam3); var occ = false, C0 = s.cam3.position; for (var st = 0.04; st < 1 && !occ; st += 0.02) { var rx = C0.x + (PP.wx - C0.x) * st, ry = C0.y + (PP.wy - C0.y) * st, rz = C0.z + (PP.wz - C0.z) * st; if (rz < -330) break; if (s.H(rx, rz) > ry) occ = true; } s.peakScr.push({ x: (pv.x + 1) * s.VW / 2, y: (1 - pv.y) * s.VH / 2, vis: !occ && pv.z < 1 && pv.x > -1 && pv.x < 1, a: s.himal.material.opacity * (s.himalLbl || 0), n: PP.n, alt: PP.alt }); }
     if (s.camps && s.himal && s.himal.visible) for (var ck = 0; ck < s.camps.length; ck++) { var CP = s.camps[ck], cv = new T3.Vector3(CP.wx, CP.wy, CP.wz).project(s.cam3); var occ2 = false, C1 = s.cam3.position; for (var st2 = 0.04; st2 < 1 && !occ2; st2 += 0.02) { var rx2 = C1.x + (CP.wx - C1.x) * st2, ry2 = C1.y + (CP.wy - C1.y) * st2, rz2 = C1.z + (CP.wz - C1.z) * st2; if (rz2 < -330) break; if (s.H(rx2, rz2) > ry2) occ2 = true; } s.peakScr.push({ x: (cv.x + 1) * s.VW / 2, y: (1 - cv.y) * s.VH / 2, vis: !occ2 && cv.z < 1 && cv.x > -1 && cv.x < 1, a: s.himal.material.opacity * (s.himalLbl || 0), n: CP.n, alt: CP.alt, small: true, k: ck }); }
     s.pinScr = [];
-    for (var k = 0; k < s.NM; k++) { var m = s.pinM[k], px = s.pinX(k) * s.SC; m.material.emissiveIntensity = px <= cx + 2 ? 1.0 : 0.2; var v = m.position.clone().project(s.cam3); s.pinScr.push({ x: (v.x + 1) * s.VW / 2, y: (1 - v.y) * s.VH / 2, vis: v.z < 1 }); }
-    s.R.render(s.scene, s.cam3);
+    for (var k = 0; k < s.NM; k++) { var m = s.pinM[k], px = s.pinX(k) * s.SC; m.material.emissiveIntensity = px <= cx + 2 ? 1.0 : 0.2; m.visible = s.pinP[k].visible = !(k === s.sto.k && s.pose > 0.05); var v = m.position.clone().project(s.cam3); s.pinScr.push({ x: (v.x + 1) * s.VW / 2, y: (1 - v.y) * s.VH / 2, vis: v.z < 1 }); }
+    var PP = s.pp; if (PP) { PP.n++; if (PP.n > 0) { PP.acc += s.dt || 0.016; if (PP.n >= 120) { if (PP.acc / PP.n > 0.024) { PP.comp.dispose(); s.pp = PP = null; } else { PP.n = 0; PP.acc = 0; } } } }
+    if (PP) { PP.bloom.strength = 0.12 + 0.38 * nf; PP.bloom.threshold = 0.92; PP.bloom.radius = 0.4; var dk = s.pose * s.pose * (3 - 2 * s.pose) * (1 - AER), FF = s.focus; PP.dof.enabled = dk > 0.02 && !!FF;
+      if (PP.dof.enabled) { PP.dof.uniforms.focus.value = s.cam3.position.distanceTo(s.tmpD.set(FF[0], FF[1], FF[2])); PP.dof.uniforms.aperture.value = 0.00005 * dk; PP.dof.uniforms.tDepth.value = PP.comp.readBuffer.depthTexture; }
+      PP.comp.render(); } else s.R.render(s.scene, s.cam3);
   }
-  setup() { var s = this; s.flags = []; s.prof = []; s.hid = {}; for (var wx = 0; wx <= s.WORLD; wx += 60) s.prof.push([wx, s.E(wx / s.WORLD)]); }
-  collect() { this.cards = [].slice.call(this.root.querySelectorAll('[data-ms]')).map(function (el) { return { el: el, k: parseFloat(el.getAttribute('data-ms')), exp: el.getAttribute('data-mode') === 'exp', h: el.offsetHeight || 240 }; }); }
+  setup() { var s = this; s.flags = []; s.prof = []; for (var wx = 0; wx <= s.WORLD; wx += 60) s.prof.push([wx, s.E(wx / s.WORLD)]); }
   scramble(el, word) { this.scr = { el: el, word: word, t0: performance.now() }; }
+  /* ---- the story: one chapter per pin. At each stop he turns to you and explains it in a typed speech bubble; between stops he
+     walks or runs and thinks aloud. "Walk the Road" plays the chapters in order. ---- */
+  chapters() {
+    if (this.CH) return this.CH;
+    this.CH = [
+      { date: 'EARLY YEARS', place: 'SARLAHI · TERAI', title: 'School in the Terai', act: 'cert', gold: true, lines: ['I grew up in Sarlahi, in Nepal’s Terai, and finished my basic schooling here.', 'Next stop: Kathmandu, and my first Computer Science classes.'], w: 'The plains taught patience. The hills, climbing.' },
+      { date: '2019', place: 'UNIGLOBE SS / COLLEGE · KATHMANDU', title: '+2 in Kathmandu', act: 'point', cue: 'horn', lines: ['In 2019 I moved to Kathmandu for my +2 at Uniglobe SS / College.', 'I studied Management with Computer Science as my major, from January 2019 to December 2020.'], w: 'A bigger city asked bigger questions.' },
+      { date: 'FEB 2021', place: 'HERALD COLLEGE KATHMANDU', title: 'BSc (Hons) Information Technology', act: 'point', lines: ['In February 2021 I started a BSc (Hons) in Information Technology at Herald College Kathmandu.', 'Less than a year in, I was already working as a developer alongside my studies.'], w: 'Learning in class, itching to build.' },
+      { date: 'JAN 2022', place: 'PRINCELAB · REMOTE', title: 'Frontend Developer, Princelab', act: 'type', ach: 'First role in tech', lines: ['January 2022: my first role in tech, Frontend Developer at Princelab, working remotely.', 'I built marketing and product pages in Next.js, React, TypeScript and Tailwind.', 'A short, focused stint until July 2022: shipped fast, learned faster.'], w: 'Shipping code changes how you study.' },
+      { date: 'JUN 2022 → NOW', place: 'PORTPRO · LALITPUR', title: 'Senior Full-Stack Engineer, PortPro', act: 'point', cue: 'truck', ach: '~40% faster new screens', lines: ['In June 2022 I joined PortPro in Lalitpur. Today I’m a Senior Full-Stack Engineer there.', 'We build drayOS, a TMS for drayage: trucking shipping containers between ports, rail yards and warehouses.', 'I own features end to end: React and TypeScript screens, Node.js services on MongoDB, real-time updates and AWS deploys.', 'I built the tariff and pay engines, unified GPS tracking, and the Orderful EDI and QuickBooks integrations.', 'My component design system cut new-screen lead time by about 40%.'], w: 'Two roads at once: work and study.' },
+      { date: '2023', place: 'AAA SCHOLARSHIP', title: 'AAA Scholarship', act: 'cert', cue: 'applause', ach: 'AAA Scholarship · 2023', lines: ['In 2023 I received the AAA Scholarship at Herald College.', 'Earned while working full-time at PortPro and studying for my degree.'], w: 'Recognition is a rest stop, not a summit.' },
+      { date: 'OCT 2023', place: 'GRADUATION · HERALD COLLEGE', title: 'First Class Honours', act: 'toss', gold: true, ach: 'First Class Honours', lines: ['October 2023: I graduated BSc (Hons) Information Technology with First Class Honours.', 'The top classification, earned while shipping production code at PortPro.'], w: 'Graduation ended a course, not the learning.' },
+      { date: '2024', place: 'AAA SCHOLARSHIP', title: 'AAA Scholarship, again', act: 'cert', ach: 'AAA Scholarship · 2024', lines: ['In 2024 the AAA Scholarship came a second time.', 'Two years running: consistency over luck.'], w: 'Time to send the rope back down.' },
+      { date: 'AUG 2025 → APR 2026', place: 'HERALD COLLEGE KATHMANDU', title: 'Final Year Project Supervisor', act: 'sit', ach: '~12 teams supervised', lines: ['From August 2025 to April 2026 I supervised final-year BSc IT projects at Herald College.', 'I led about 12 student teams: blockchain voting, AI recommendation engines for medical, logistics and mental health, and full-stack web platforms.', 'I reviewed their architecture and ran weekly sessions on agentic patterns and data modelling.'], w: 'Teaching sharpened what I thought I knew.' },
+      { date: 'NOW', place: 'PORTPRO · AI AGENTS', title: 'Building an orchestrator agent', act: 'type', lines: ['Now I’m building an orchestrator AI agent at PortPro.', 'It supervises dispatcher, billing and CSR sub-agents: hands each one its task, monitors it and checks the result.', 'I work with Claude, Google ADK and MCP, and I build agents of my own, like a ticket-to-PR triage agent.'], w: 'The air thins. The view widens.' },
+      { date: 'NEXT', place: 'OPEN TO WORK', title: 'Much more to go.', act: 'gaze', gold: true, lines: ['Over four years of shipping production software, and the next summit is already in view.', 'I’m open to senior and contract roles.', 'Read the résumé, or just say hello.'] }
+    ];
+    return this.CH;
+  }
+  lineDur(t) { return Math.max(2.6, Math.min(6, t.length / 40 + 1.4)); }
+  pinCam(k) { return this.pinX(k) - this.TX; }
+  storyTick(T, dt) {
+    var s = this, CH = s.chapters(), o = s.sto, st = s.state || {}, on = s.mode < 0.5;
+    var best = 0, bd = 1e9; for (var k = 0; k < s.NM; k++) { var d = Math.abs(s.cam - s.pinCam(k)); if (d < bd) { bd = d; best = k; } }
+    if (o.k >= 0 && (bd > 40 || best !== o.k)) { o.k = -1; o.n = -1; s.setState({ sk: -1 }); }
+    if (o.k < 0 && on && bd < 24 && Math.abs(s.v) < 0.5 && Math.abs(s.tc - s.cam) < 24 && !s.drag && (!s.tour || s.tour.k === best)) s.speak(best);
+    var C = o.k >= 0 ? CH[o.k] : null, text = '', tt = 0, typeDur = 0;
+    if (C) {
+      var D = s.lineDur(C.lines[o.i]);
+      if (on && !s.hold) o.t += dt;
+      if (o.t >= D && o.i < C.lines.length - 1) { o.i++; o.t = 0; o.n = -1; D = s.lineDur(C.lines[o.i]); if (o.i === 1 && C.act === 'toss') { s.tossT = T; s.cue('applause'); } if (o.i === 1 && C.ach) s.cue('chime'); s.setState({ si: o.i }); }
+      else if (o.t >= D && !o.done) { o.done = true; s.setState({ sdone: true }); }
+      if (o.done && s.auto && on && !s.hold) { o.wait += dt; if (o.wait > 1.2) { if (o.k < s.NM - 1) s.goCh(o.k + 1); else { s.auto = false; s.setState({ auto: false }); } } }
+      text = C.lines[o.i]; tt = o.t; typeDur = s.rm ? 0 : Math.min(text.length / 46, D - 0.7);
+      if (C.act === 'type' && on && tt < typeDur) { s.tapT = (s.tapT || 0) - dt; if (s.tapT <= 0) { s.cue('tick'); s.tapT = 0.06 + Math.random() * 0.12; } }
+    }
+    /* between stops: the reflection that closes the chapter he has just left */
+    var tk = -1, j = -1; for (k = 0; k < s.NM - 1; k++) if (s.cam >= s.pinCam(k)) j = k;
+    if (!C && on && j >= 0) { var f = (s.cam - s.pinCam(j)) / (s.pinCam(j + 1) - s.pinCam(j)); if (f > 0.06 && f < 0.9 && CH[j].w) tk = j; }
+    if (tk !== o.tk) { o.tk = tk; o.tt = 0; o.n = -1; s.setState({ tk: tk }); }
+    if (tk >= 0) { o.tt += dt; text = CH[tk].w; tt = o.tt; typeDur = s.rm ? 0 : text.length / 32; }
+    var n = typeDur > 0 ? Math.min(text.length, Math.floor(text.length * tt / typeDur)) : text.length;
+    if (s.sayT && n !== o.n && (C || tk >= 0)) { s.sayT.textContent = text.slice(0, n); s.sayT.setAttribute('data-typing', n < text.length ? 'true' : 'false'); o.n = n; }
+    var show = on && (C || tk >= 0) ? 1 : 0; s.sayA += (show - s.sayA) * Math.min(1, dt * (show ? 6 : 9));
+    s.placeBubble();
+    if (s.barP) s.barP.style.transform = 'scaleX(' + (C ? Math.min(1, (o.i + Math.min(1, o.t / s.lineDur(C.lines[o.i]))) / C.lines.length) : 0).toFixed(3) + ')';
+    var bk = C ? o.k : s.tour ? s.tour.k : Math.max(0, j), sbar = s.cam > 150 || s.auto || !!C || !!s.tour;
+    if (st.bk !== bk || st.sbar !== sbar) s.setState({ bk: bk, sbar: sbar });
+  }
+  /* the bubble hangs above his head in real screen pixels; when he is out of shot it waits low in the frame without a tail */
+  placeBubble() {
+    var s = this, B = s.bub; if (!B) return;
+    if (s.sayA < 0.01) { if (B.style.visibility !== 'hidden') B.style.visibility = 'hidden'; return; }
+    var K = s.K || 1, vw = s.VW * K, vh = s.VH * K, w = B.offsetWidth, h = B.offsetHeight, hp = s.headPos(), x = hp.x * K, y = hp.y * K;
+    var off = !hp.ok || x < 0 || x > vw || y < 60 || y > vh, top0 = Math.max(84 * K + 12, 64), maxB = vh - (vw < 760 ? 168 : 176 * K), left, top, tail = '';
+    if (off) { left = (vw - w) / 2; top = Math.max(top0, maxB - h - 10); tail = 'off'; }
+    else if (s.sto.k >= 0 && vw >= 760) {
+      /* beside his head, on the side away from the chapter's sign and props */
+      var sp = s.spot && s.spot.see ? s.toScreen(s.spot.see) : null, sx = sp ? sp.x * K : x + 1, roomL = x - 46 >= w, roomR = vw - x - 46 >= w;
+      tail = sx >= x ? (roomL ? 'right' : roomR ? 'left' : '') : (roomR ? 'left' : roomL ? 'right' : '');
+      if (tail) { left = tail === 'right' ? x - 34 - w : x + 34; top = Math.max(top0, Math.min(y - h * 0.42, maxB - h));
+        if (sp && s.spot.seeW) { var e0 = s.toScreen([s.spot.see[0] - s.spot.seeW, s.spot.see[1], s.spot.see[2]]).x * K, e1 = s.toScreen([s.spot.see[0] + s.spot.seeW, s.spot.see[1], s.spot.see[2]]).x * K; if (tail === 'right' && left + w > e0 - 12) left = Math.max(12, Math.min(left, e0 - 12 - w)); if (tail === 'left' && left < e1 + 12) left = Math.min(vw - w - 12, Math.max(left, e1 + 12)); } }
+    }
+    if (!left && left !== 0) { left = Math.max(12, Math.min(vw - w - 12, x - w * 0.5)); top = Math.max(top0, Math.min(y - h - 10, maxB - h)); tail = top === y - h - 10 ? 'on' : 'off'; }
+    B.style.visibility = 'visible'; B.style.opacity = s.sayA.toFixed(3); B.style.transform = 'translate3d(' + left.toFixed(1) + 'px,' + (top + (1 - s.sayA) * 12).toFixed(1) + 'px,0)';
+    B.style.setProperty('--tx', Math.max(22, Math.min(w - 22, x - left)).toFixed(1) + 'px'); B.style.setProperty('--ty', Math.max(18, Math.min(h - 18, y + 8 - top)).toFixed(1) + 'px'); if (B.getAttribute('data-tail') !== tail) B.setAttribute('data-tail', tail);
+  }
+  toScreen(p) { var s = this, v = s.tmpH || (s.tmpH = new window.THREE.Vector3()); v.set(p[0], p[1], p[2]).project(s.cam3); return { x: (v.x + 1) * s.VW / 2, y: (1 - v.y) * s.VH / 2 }; }
+  headPos() { var s = this, g = s.walker; if (!s.ready3d || !g) return { ok: false, x: 0, y: 0 }; var v = s.tmpH || (s.tmpH = new window.THREE.Vector3()); v.set(g.position.x, g.position.y + 2.25 * g.userData.h, g.position.z).project(s.cam3); return { ok: v.z > -1 && v.z < 1, x: (v.x + 1) * s.VW / 2, y: (1 - v.y) * s.VH / 2 }; }
+  speak(k) { var s = this, o = s.sto, C = s.chapters()[k]; o.k = k; o.i = 0; o.t = 0; o.n = -1; o.done = false; o.wait = 0; s.hold = false; s.tossT = null; if (s.tour && s.tour.k === k) s.tour = null; if (C.cue) s.cue(C.cue); s.setState({ sk: k, si: 0, sdone: false }); }
+  goCh(k) { var s = this; k = Math.max(0, Math.min(s.NM - 1, k)); clearTimeout(s.snapT); s.hold = false; if (s.sto.k === k) { s.speak(k); return; } var to = s.pinCam(k); s.tour = { to: to, k: k, v: Math.max(14, Math.min(30, Math.abs(to - s.tc) / 70)) }; }
+  curCh() { var s = this, j = -1; if (s.sto.k >= 0) return s.sto.k; if (s.tour) return s.tour.k; for (var k = 0; k < s.NM; k++) if (s.cam >= s.pinCam(k) - 24) j = k; return j; }
+  /* any wheel, drag, key or pin jump hands control back to the reader: autoplay stops, the current chapter keeps talking */
+  manual() { var s = this; if (s.auto || s.tour) { s.auto = false; s.tour = null; s.setState({ auto: false }); } s.hold = false; }
+  snapCh() { var s = this, best = -1, bd = 150; for (var k = 0; k < s.NM; k++) { var d = Math.abs(s.tc - s.pinCam(k)); if (d < bd) { bd = d; best = k; } } if (best >= 0) s.setT(s.pinCam(best)); }
   tick() {
     var s = this;
-    if (!s.root) return;
-    if (s.f++ % 150 === 0) s.collect();
+    if (!s.root || s.paused) return;
+    var now = performance.now(), dt = Math.min(0.1, (now - (s.lastNow || now)) / 1000); s.lastNow = now; s.dt = dt;
     if (s.cv && !s.dpr) { s.dpr = Math.min(1.5, window.devicePixelRatio || 1); s.cv.width = s.VW * s.dpr; s.cv.height = s.VH * s.dpr; s.ctx = s.cv.getContext('2d'); if (s.pf) { s.pf.width = s.VW * s.dpr; s.pf.height = 90 * s.dpr; s.pctx = s.pf.getContext('2d'); } }
     if (!s.ready3d && s.gl && window.THREE && !s.fail3d) { try { s.setup3d(); } catch (err) { s.fail3d = true; if (window.console) console.warn('3d setup', err); } }
+    if (s.tour) { var rem = s.tour.to - s.tc, stp = s.tour.v * dt * 60; s.tc = Math.abs(rem) <= stp ? s.tour.to : s.tc + (rem > 0 ? stp : -stp); }
     var e = this.props.smooth == null ? 0.045 : this.props.smooth, pc = s.cam;
     s.cam += (s.tc - s.cam) * e; if (Math.abs(s.tc - s.cam) < 0.05) s.cam = s.tc;
     s.v += ((s.cam - pc) - s.v) * 0.15;
@@ -1031,23 +1492,13 @@ export class JourneyEngine {
       s.scr.el.textContent = out; if (done) s.scr = null;
     }
     var cam = s.cam, T = (performance.now() - s.t0) / 1000;
-    if (s.ready3d) { try { s.frame3d(cam, T); } catch (err2) { s.fail3d = true; s.ready3d = false; } }
+    if (s.ready3d) { try { s.frame3d(cam, T); } catch (err2) { s.fail3d = true; s.ready3d = false; if (window.console) console.warn('3d frame', err2); } }
     s.draw(cam, T); s.profile(cam);
-    if (s.intro) { var io = 1 - cam / 520; io = io < 0 ? 0 : io; if (s.state && s.state.mapBig) io = 0; s.intro.style.opacity = io.toFixed(3); s.intro.style.transform = 'translate3d(' + (-cam * 0.35).toFixed(1) + 'px,' + (-cam * 0.05).toFixed(1) + 'px,0)'; s.intro.style.visibility = io < 0.01 ? 'hidden' : 'visible'; s.intro.style.pointerEvents = io > 0.5 ? 'auto' : 'none'; }
-    for (var c = 0; c < s.cards.length; c++) {
-      var C = s.cards[c], P = s.pinPos(C.k), sx = P.x, ax = s.TX + (s.VW - 1440) / 2, d = Math.abs(sx - (ax + 40));
-      var o = 1 - d / 600; o = o < 0 ? 0 : o; o = o * o * (3 - 2 * o);
-      var mw = C.exp ? s.mode : 1 - s.mode; o *= mw * mw; if ((s.state && (s.state.cards === false || s.state.mapBig)) || (s.hid && s.hid[C.k])) o = 0;
-      if (o < 0.01) { C.el.style.visibility = 'hidden'; continue; }
-      var h = C.h || 240, top = Math.max(100, P.y - h - 44);
-      var flip = (1 - mw) * (C.exp ? -14 : 14);
-      C.el.style.visibility = 'visible'; C.el.style.opacity = o.toFixed(3);
-      C.el.style.pointerEvents = o > 0.8 ? 'auto' : 'none';
-      C.el.style.transform = 'perspective(1200px) translate3d(' + (sx - 26 + s.mx * 8).toFixed(1) + 'px,' + (top + (1 - o) * 40 + s.my * 5).toFixed(1) + 'px,0) rotateY(' + flip.toFixed(2) + 'deg) rotate(' + ((C.exp ? -1.6 : 0) + (1 - o) * (sx > ax ? 2 : -2)).toFixed(2) + 'deg)';
-    }
+    if (s.intro) { var io = Math.min(1 - cam / 520, 1 - s.sayA); io = io < 0 ? 0 : io; s.intro.style.opacity = io.toFixed(3); s.intro.style.transform = 'translate3d(' + (-cam * 0.35).toFixed(1) + 'px,' + (-cam * 0.05).toFixed(1) + 'px,0)'; s.intro.style.visibility = io < 0.01 ? 'hidden' : 'visible'; s.intro.style.pointerEvents = io > 0.5 ? 'auto' : 'none'; }
+    s.storyTick(T, dt);
     var t = (cam + s.TX) / s.WORLD;
     var wx = cam + s.TX, region = wx < s.pinX(0) + 700 ? 'TERAI PLAINS · SARLAHI' : wx < s.pinX(0) + 1800 ? 'TERAI VILLAGE · SARLAHI' : wx < s.pinX(0) + 2900 ? 'RIVER & CANALS · TERAI' : wx < s.pinX(0) + 4500 ? 'CHITWAN NATIONAL PARK' : wx < s.pinX(1) - 150 ? 'LUMBINI · RUPANDEHI' : wx < s.pinX(2) - 100 ? 'MAHABHARAT HILLS' : wx < s.pinX(8) - 300 ? 'KATHMANDU VALLEY' : wx < s.pinX(9) + 100 ? 'VALLEY RIM' : 'HIGH HIMALAYA';
-    var hh = s.hourNow(), hm = ('0' + Math.floor(hh)).slice(-2) + ':' + ('0' + Math.floor((hh % 1) * 60)).slice(-2); region = region + ' · ' + hm;
+    var hh = s.hourNow(), hm = ('0' + Math.floor(hh)).slice(-2) + ':' + ('0' + Math.floor((hh % 1) * 60)).slice(-2); region = s.isExp() ? 'EXPLORER · NEPAL & BEYOND' : region + ' · ' + hm;
     if (s.region && s.region.textContent !== region) s.region.textContent = region;
     var passed = 0; for (var k = 0; k < s.NM; k++) if (s.pinX(k) <= cam + s.TX + 30) passed = k + 1;
     if (!s.state || s.state.passed !== passed) s.setState({ passed: passed });
@@ -1063,7 +1514,6 @@ export class JourneyEngine {
     ctx.clearRect(0, 0, s.VW, s.VH);
     var sh = ctx.createLinearGradient(0, s.VH - 240, 0, s.VH); sh.addColorStop(0, 'rgba(6,12,20,0)'); sh.addColorStop(1, 'rgba(6,12,20,.55)');
     ctx.fillStyle = sh; ctx.fillRect(0, s.VH - 240, s.VW, 240);
-    s.focusLight(ctx, cam, T);
     if (!s.ready3d) {
       var rc0 = s.mix(s.hex('#98b9fb'), s.hex('#f4b961'), s.mode);
       ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 9]); ctx.beginPath();
@@ -1071,43 +1521,16 @@ export class JourneyEngine {
       ctx.strokeStyle = s.css(rc0); ctx.lineWidth = 2.5; ctx.beginPath(); for (x = 0; x <= s.TX; x += 8) { y = s.VH - 110 - s.E((cam + x) / s.WORLD) * 60; if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); } ctx.stroke();
       if (s.gl && !window.THREE) { ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.font = '500 12px "JetBrains Mono", monospace'; ctx.fillText('loading the 3D world…', 48, 640); }
     }
-    s.whispers(ctx, cam, T);
     s.pins(ctx, cam, T);
-    if (s.peakScr && s.peakScr.length && !(s.state && s.state.mapBig)) { var lvl = 0; s.peakScr.forEach(function (P, i) { if (!P.vis || P.a < 0.05) return; if (P.small) { ctx.globalAlpha = P.a; ctx.beginPath(); ctx.arc(P.x, P.y, 5, 0, 6.283); ctx.fillStyle = '#c9262a'; ctx.fill(); ctx.font = '700 8px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.fillText(String(P.k + 1), P.x, P.y + 3); var lft = P.k % 2 === 1, lx = lft ? P.x - 9 : P.x + 9; ctx.textAlign = lft ? 'right' : 'left'; ctx.font = '600 10.5px Inter, sans-serif'; ctx.shadowColor = 'rgba(0,0,0,.7)'; ctx.shadowBlur = 5; ctx.fillStyle = '#ffffff'; ctx.fillText(P.n, lx, P.y + 1); ctx.font = '500 9px JetBrains Mono, monospace'; ctx.fillStyle = '#dbe2eb'; ctx.fillText(P.alt, lx, P.y + 12); ctx.shadowBlur = 0; ctx.globalAlpha = 1; return; } var up = [64, 52, 66, 86, 56, 72, 60, 84, 60, 108, 78, 70, 56][i] || 60; ctx.globalAlpha = P.a * 0.95; ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(P.x, P.y - 4); ctx.lineTo(P.x, P.y - up + 22); ctx.stroke(); ctx.textAlign = 'center'; ctx.font = '600 11px Inter, sans-serif'; ctx.fillStyle = '#ffffff'; ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 6; ctx.fillText(P.n, P.x, P.y - up + 4); ctx.font = '500 10px JetBrains Mono, monospace'; ctx.fillStyle = '#dbe2eb'; ctx.fillText(P.alt + 'm', P.x, P.y - up + 17); ctx.shadowBlur = 0; ctx.globalAlpha = 1; ctx.textAlign = 'start'; }); }
-    if (s.ready3d) s.nepalMap(ctx, cam, T);
+    if (s.peakScr && s.peakScr.length) { var lvl = 0; s.peakScr.forEach(function (P, i) { if (!P.vis || P.a < 0.05) return; if (P.small) { ctx.globalAlpha = P.a; ctx.beginPath(); ctx.arc(P.x, P.y, 5, 0, 6.283); ctx.fillStyle = '#c9262a'; ctx.fill(); ctx.font = '700 8px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.fillText(String(P.k + 1), P.x, P.y + 3); var lft = P.k % 2 === 1, lx = lft ? P.x - 9 : P.x + 9; ctx.textAlign = lft ? 'right' : 'left'; ctx.font = '600 10.5px Inter, sans-serif'; ctx.shadowColor = 'rgba(0,0,0,.7)'; ctx.shadowBlur = 5; ctx.fillStyle = '#ffffff'; ctx.fillText(P.n, lx, P.y + 1); ctx.font = '500 9px JetBrains Mono, monospace'; ctx.fillStyle = '#dbe2eb'; ctx.fillText(P.alt, lx, P.y + 12); ctx.shadowBlur = 0; ctx.globalAlpha = 1; return; } var up = [64, 52, 66, 86, 56, 72, 60, 84, 60, 108, 78, 70, 56][i] || 60; ctx.globalAlpha = P.a * 0.95; ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(P.x, P.y - 4); ctx.lineTo(P.x, P.y - up + 22); ctx.stroke(); ctx.textAlign = 'center'; ctx.font = '600 11px Inter, sans-serif'; ctx.fillStyle = '#ffffff'; ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 6; ctx.fillText(P.n, P.x, P.y - up + 4); ctx.font = '500 10px JetBrains Mono, monospace'; ctx.fillStyle = '#dbe2eb'; ctx.fillText(P.alt + 'm', P.x, P.y - up + 17); ctx.shadowBlur = 0; ctx.globalAlpha = 1; ctx.textAlign = 'start'; }); }
     var W = s.walkerPos();
-    if (s.wLabel && s.ready3d) { var WL = ['SCHOOL DAYS · TERAI', 'STUDENT · KATHMANDU', 'ENGINEER · PORTPRO', 'TREKKER · HIMALAYA'][s.wLabel.k], la = s.wLabel.hold != null ? Math.min(1, s.wLabel.hold / 30) : s.wLabel.t; ctx.globalAlpha = la; ctx.font = '500 11px JetBrains Mono, monospace'; ctx.textAlign = 'center'; ctx.fillStyle = '#ffe9b0'; ctx.shadowColor = 'rgba(0,0,0,.7)'; ctx.shadowBlur = 8; ctx.fillText(WL, W.x, W.y - 44 - (1 - la) * 10); ctx.shadowBlur = 0; ctx.globalAlpha = 1; ctx.textAlign = 'start'; }
     if (!s.ready3d) { ctx.globalAlpha = 0.9; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(W.x, W.y, 3, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
-  }
-  focusLight(ctx, cam, T) {
-    /* while a scene's sound plays, the thing making it is lit and everything else is quietly dimmed: the river at the bridge,
-       the animals in the Chitwan clearing, the stupa, the temples, the monastery */
-    var s = this; if (!s.au || s.au.muted || !s.ready3d || !s.cam3) return; var T3 = window.THREE, cx = (cam + s.TX) * s.SC, M = s.sceneMix(cx);
-    var F = [{ w: M.river, p: [s.rivX(0, 0), s.roadH(s.rivX(0, 0)) + 2, -20], r: 260 }, { w: M.jungle, p: [356, s.H(356, -70) + 3, -70], r: 300 }, { w: Math.max(M.chant, 1 - s.ss(8, 50, Math.abs(cx - s.pinX(2) * s.SC))) * (cx < s.pinX(3) * s.SC ? 1 : 0), p: [s.SWY[0], s.H(s.SWY[0], s.SWY[1]) + 12, s.SWY[1]], r: 200 }, { w: 1 - s.ss(8, 48, Math.abs(cx - s.pinX(5) * s.SC)), p: [s.pinX(5) * s.SC + 24, s.H(s.pinX(5) * s.SC + 24, -46) + 6, -46], r: 230 }, { w: 1 - s.ss(8, 56, Math.abs(cx - s.pinX(6) * s.SC)), p: [s.pinX(6) * s.SC + 40, s.H(s.pinX(6) * s.SC + 40, -112) + 4, -112], r: 300 }, { w: s.lum(cx), p: [470, s.H(470, -46) + 6, -46], r: 280 }, { w: 1 - s.ss(8, 54, Math.abs(cx - s.pinX(7) * s.SC)), p: [s.pinX(7) * s.SC + 30, s.H(s.pinX(7) * s.SC + 30, -118) + 14, -118], r: 240 }];
-    var best = null; F.forEach(function (f) { if (f.w > 0.25 && (!best || f.w > best.w)) best = f; }); if (!best) return;
-    var v = new T3.Vector3(best.p[0], best.p[1], best.p[2]).project(s.cam3); if (v.z > 1) return; var sx = (v.x + 1) * s.VW / 2, sy = (1 - v.y) * s.VH / 2, k = s.ss(0.25, 0.8, best.w), pulse = 0.5 + 0.5 * Math.sin(T * 2.2);
-    var g = ctx.createRadialGradient(sx, sy, best.r * 0.6, sx, sy, best.r * 2.6); g.addColorStop(0, 'rgba(4,8,16,0)'); g.addColorStop(1, 'rgba(4,8,16,' + (0.5 * k).toFixed(3) + ')'); ctx.fillStyle = g; ctx.fillRect(0, 0, s.VW, s.VH);
-    ctx.globalCompositeOperation = 'lighter'; var l = ctx.createRadialGradient(sx, sy, 0, sx, sy, best.r * 0.75); var warm = s.mode > 0.5 ? '255,214,140' : '190,215,255'; l.addColorStop(0, 'rgba(' + warm + ',' + (0.13 * k * (0.8 + 0.2 * pulse)).toFixed(3) + ')'); l.addColorStop(0.6, 'rgba(' + warm + ',' + (0.05 * k).toFixed(3) + ')'); l.addColorStop(1, 'rgba(' + warm + ',0)'); ctx.fillStyle = l; ctx.fillRect(0, 0, s.VW, s.VH); ctx.globalCompositeOperation = 'source-over';
-  }
-  whispers(ctx, cam, T) {
-    var s = this, W = s.WH; if (!W) return;
-    var a = 1 - s.mode; if (a < 0.02) return;
-    ctx.font = 'italic 500 14px "Sawton Circular", Inter, sans-serif'; ctx.textAlign = 'center';
-    ctx.shadowColor = 'rgba(0,0,0,.7)'; ctx.shadowBlur = 10;
-    for (var k = 0; k < W.length - 1; k++) {
-      if (!W[k]) continue;
-      var A = s.pinPos(k), B = s.pinPos(k + 1), x = (A.x + B.x) / 2, y = Math.min(A.y, B.y) - 34;
-      if (x < -200 || x > 1640) continue;
-      var o = 1 - Math.abs(x - (s.TX + 560)) / 480; if (o <= 0) continue;
-      ctx.globalAlpha = a * o * 0.92; ctx.fillStyle = '#ffffff'; ctx.fillText(W[k], x, y);
-    }
-    ctx.shadowBlur = 0; ctx.globalAlpha = 1; ctx.textAlign = 'left';
   }
   pins(ctx, cam, T) {
     var s = this, rc = s.mix(s.hex('#98b9fb'), s.hex('#f4b961'), s.mode);
     ctx.font = '500 10px "JetBrains Mono", ui-monospace, monospace'; ctx.textAlign = 'center';
     for (var k = 0; k < s.NM; k++) {
-      var P = s.pinPos(k); if (!P.vis || P.x < -40 || P.x > 1480) continue;
+      var P = s.pinPos(k); if (!P.vis || P.x < -40 || P.x > 1480 || (k === s.sto.k && s.sayA > 0.2)) continue;
       var done = s.pinX(k) <= cam + s.TX + 30;
       if (!s.ready3d) { ctx.strokeStyle = done ? s.css(rc) : 'rgba(255,255,255,.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(P.x, P.y); ctx.lineTo(P.x, P.y - 18); ctx.stroke(); ctx.fillStyle = done ? s.css(rc) : 'rgba(10,18,30,.7)'; ctx.beginPath(); ctx.arc(P.x, P.y - 22, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
       ctx.shadowColor = 'rgba(0,0,0,.75)'; ctx.shadowBlur = 6; ctx.fillStyle = done ? '#ffffff' : 'rgba(255,255,255,.8)'; ctx.fillText(s.PL && s.PL[k] ? s.PL[k] : String(k + 1), P.x, P.y - (s.ready3d ? 12 : 32)); ctx.shadowBlur = 0;
@@ -1117,7 +1540,7 @@ export class JourneyEngine {
   profile(cam) {
     var s = this, ctx = s.pctx; if (!ctx || !s.prof) return;
     ctx.setTransform(s.dpr, 0, 0, s.dpr, 0, 0); ctx.clearRect(0, 0, s.VW, 90);
-    var L = 140, R = s.VW - 260, base = 64, H = 40, rc = s.css(s.mix(s.hex('#98b9fb'), s.hex('#f4b961'), s.mode));
+    var L = 140, R = s.VW - 140, base = 64, H = 40, rc = s.css(s.mix(s.hex('#98b9fb'), s.hex('#f4b961'), s.mode));
     var X = function (wx) { return L + (wx / s.WORLD) * (R - L); }, P = s.prof;
     ctx.beginPath(); ctx.moveTo(L, base); for (var i = 0; i < P.length; i++) ctx.lineTo(X(P[i][0]), base - P[i][1] * H); ctx.lineTo(R, base); ctx.closePath(); ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fill();
     ctx.beginPath(); for (i = 0; i < P.length; i++) { if (i === 0) ctx.moveTo(X(P[i][0]), base - P[i][1] * H); else ctx.lineTo(X(P[i][0]), base - P[i][1] * H); } ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1; ctx.stroke();
@@ -1126,61 +1549,14 @@ export class JourneyEngine {
     for (var k = 0; k < s.NM; k++) { var pw = s.pinX(k), done = pw <= cur + 30, py = base - s.E(pw / s.WORLD) * H; ctx.fillStyle = done ? rc : 'rgba(10,18,30,.8)'; ctx.strokeStyle = done ? rc : 'rgba(255,255,255,.5)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(X(pw), py, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
     ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(X(cur), Yc, 5, 0, Math.PI * 2); ctx.fill();
   }
-  months(y1, m1, y2, m2) { return (y2 - y1) * 12 + (m2 - m1) + 1; }
-  fmt(n) { var y = Math.floor(n / 12), m = n % 12; return (y ? y + (y > 1 ? ' yrs' : ' yr') : '') + (y && m ? ' ' : '') + (m ? m + (m > 1 ? ' mos' : ' mo') : ''); }
   renderVals() {
-    var s = this, st = this.state || {}, passed = st.passed || 0, exp = this.isExp(), tab = st.tab || 'overview';
-    if (!s._r) s._r = { root: function (el) { s.root = el; }, cv: function (el) { s.cv = el; s.dpr = 0; }, pf: function (el) { s.pf = el; s.dpr = 0; }, intro: function (el) { s.intro = el; }, region: function (el) { s.region = el; }, gl: function (el) { s.gl = el; }, wEng: function (el) { s.wEng = el; }, wExp: function (el) { s.wExp = el; } };
-    var Z = { 'TERAI': ['rgba(147,214,148,.16)', '#93d694'], 'HILLS': ['rgba(101,196,102,.16)', '#93d694'], 'VALLEY': ['rgba(113,158,249,.18)', '#98b9fb'], 'FOOTHILLS': ['rgba(244,185,97,.16)', '#f4b961'], 'HIMALAYA': ['rgba(232,238,247,.16)', '#e8eef7'] };
-    var eng = [
-      { date: 'EARLY YEARS', zone: 'TERAI', title: 'Rooted in the plains', line: 'I grew up in Sarlahi, on Nepal’s flat Terai, and did my basic schooling there.', w: 'The plains taught patience. The hills, climbing.' },
-      { date: '2019', zone: 'HILLS', title: 'Up to Kathmandu', line: 'Moved to the capital for +2 at Uniglobe SS / College — Management, Computer Science major.', w: 'A bigger city asked bigger questions.' },
-      { date: 'FEB 2021', zone: 'VALLEY', title: 'Choosing IT', line: 'Began a BSc (Hons) in Information Technology at Herald College Kathmandu.', w: 'Learning in class, itching to build.' },
-      { date: 'JAN 2022', zone: 'VALLEY', title: 'First real job', line: 'Joined Princelab as a remote Frontend Developer, shipping in Next.js.', ach: 'First role in tech', w: 'Shipping code changes how you study.' },
-      { date: 'JUN 2022', zone: 'VALLEY', title: 'Joining PortPro', line: 'Joined PortPro in Lalitpur, building drayOS — a logistics TMS — full-stack.', w: 'Two roads at once: work and study.' },
-      { date: '2023', zone: 'VALLEY', title: 'A first scholarship', line: 'Received the AAA Scholarship — a quiet nod to the effort.', ach: 'AAA Scholarship', w: 'Recognition is a rest stop, not a summit.' },
-      { date: 'OCT 2023', zone: 'FOOTHILLS', title: 'First Class Honours', line: 'Graduated BSc (Hons) IT with First Class Honours.', ach: 'First Class Honours', w: 'Graduation ended a course, not the learning.' },
-      { date: '2024', zone: 'FOOTHILLS', title: 'Recognised again', line: 'The AAA Scholarship came a second time. Consistency over luck.', ach: 'AAA Scholarship · again', w: 'Time to send the rope back down.' },
-      { date: 'AUG 2025', zone: 'HIMALAYA', title: 'Turning to teach', line: 'Appointed Final Year Project Supervisor at Herald, mentoring about 12 teams.', ach: 'Appointed supervisor', w: 'Teaching sharpened what I thought I knew.' },
-      { date: 'NOW · 2026', zone: 'HIMALAYA', title: 'Building AI agents', line: 'Senior Full-Stack Engineer at PortPro — now teaching agents to ship.', w: 'The air thins. The view widens.' },
-      { date: 'NEXT', zone: 'HIMALAYA', title: 'Much more to go.', line: 'The next summit is already in view. Open to senior and contract roles from Q3 2026.', last: true }
-    ].map(function (m, k) { var z = Z[m.zone]; m.k = k; m.no = String(k + 1).padStart(2, '0'); m.zbg = z[0]; m.zc = z[1]; m.dc = m.last ? '#f4b961' : '#ffffff'; if (!m.ach) m.ach = ''; if (!m.last) m.last = false; m.w = m.last ? 380 : 300; return m; });
-    s.WH = eng.map(function (m) { return m.w || ''; });
+    var s = this, st = this.state || {}, exp = this.isExp();
+    if (!s._r) s._r = { root: function (el) { s.root = el; }, cv: function (el) { s.cv = el; s.dpr = 0; }, pf: function (el) { s.pf = el; s.dpr = 0; }, intro: function (el) { s.intro = el; }, region: function (el) { s.region = el; }, gl: function (el) { s.gl = el; }, wEng: function (el) { s.wEng = el; }, wExp: function (el) { s.wExp = el; }, say: function (el) { s.bub = el; }, sayT: function (el) { s.sayT = el; s.sto.n = -1; }, barP: function (el) { s.barP = el; } };
     s.PL = ['ORIGIN', '2019', '2021', 'JAN 22', 'JUN 22', '2023', 'OCT 23', '2024', 'AUG 25', 'NOW', 'NEXT'];
-    var exps = [
-      { kind: 'HOME', meta: 'SARLAHI', title: 'Where every trip starts', line: 'Paddy and mustard fields, flat horizons, long Terai sunsets.', photo: '[ADD PHOTO · SARLAHI]' },
-      { kind: 'CITY', meta: 'KATHMANDU', title: '[FAVOURITE SPOT IN THE VALLEY]', line: '[A place you keep going back to.]', photo: '[ADD PHOTO · KATHMANDU]' },
-      { kind: 'RIDE', meta: '[KM] KM', title: '[ROUTE NAME]', line: '[Your bike] · [start] to [end] · [year].', photo: '[ADD PHOTO · RIDE]' },
-      { kind: 'TREK', meta: '[MAX ALT] M', title: '[TREK NAME]', line: '[Days] days · [year] · [one memory from the trail].', photo: '[ADD PHOTO · TREK]' },
-      { kind: 'TRAVEL', meta: '[N] PLACES', title: '[PLACES YOU’VE TRAVELLED]', line: '[Regions or countries, and what you went for.]', photo: '[ADD PHOTO · TRAVEL]' },
-      { kind: 'PHOTOGRAPHY', meta: '[CAMERA]', title: 'Through the lens', line: '[What you like to shoot] · [Instagram link].', photo: '[ADD YOUR BEST SHOT]' },
-      { kind: 'RIDE', meta: '[KM] KM', title: '[SECOND ROUTE]', line: '[The ride you remember most and why.]', photo: '[ADD PHOTO · RIDE]' },
-      { kind: 'HIKE', meta: '[VIEWPOINT]', title: '[DAY HIKE]', line: '[A hill above the valley worth the climb.]', photo: '[ADD PHOTO · HIKE]' },
-      { kind: 'TREK', meta: '[MAX ALT] M', title: '[SECOND TREK]', line: '[Highest point, hardest day, best view.]', photo: '[ADD PHOTO · SUMMIT]' },
-      { kind: 'SUNRISE', meta: '[VIEWPOINT]', title: 'Above the clouds', line: '[A sunrise worth the 4 a.m. start.]', photo: '[ADD PHOTO · SUNRISE]' },
-      { kind: 'NEXT', meta: 'PLANNED', title: '[NEXT TREK OR RIDE]', line: 'Always planning the next one. Talk work, trails or both?', photo: '[ADD PHOTO · PRAYER FLAGS]', contact: true }
-    ].map(function (m, k) { m.k = k; if (!m.contact) m.contact = false; return m; });
-    var achIdx = []; eng.forEach(function (m, k) { if (m.ach) achIdx.push(k); });
-    var unlocked = achIdx.filter(function (k) { return k < passed; }).length;
-    var now = new Date(), ny = now.getFullYear(), nm = now.getMonth() + 1;
-    var pp = s.months(2022, 6, ny, nm), tot = s.months(2022, 1, ny, nm);
-    var work = [
-      { no: 'W/01', tag: 'PORTPRO · 2023—26', title: 'Tariff & Pay Engine', desc: 'Customer, driver and carrier tariffs that price every load and driver move.', hl: ['Radius and compounding-radius rates, move conditions', 'CSV bulk upload, versioning; Tariff and audit-log public API'], stack: ['React', 'Node.js', 'MongoDB'] },
-      { no: 'W/02', tag: 'PORTPRO · 2024—26', title: 'Unified GPS History & Tracking', desc: 'One driver trail from ELD and the mobile app, with gaps backfilled.', hl: ['Playback, geofences, owner-operator tracking', 'Bounded history queries on TimescaleDB; tracking-api on Node 24'], stack: ['Mapbox GL', 'Leaflet', 'Node.js', 'TimescaleDB'] },
-      { no: 'W/03', tag: 'PORTPRO · 2024—26', title: 'Orderful EDI & Order Entry', desc: 'EDI-tendered loads from partner setup to Order Entry v2.', hl: ['210 / 214 / 990 relationships, transaction audits, retrigger API', 'Order Entry v2 EDI screen'], stack: ['React', 'Node.js', 'Orderful'] },
-      { no: 'W/04', tag: 'PORTPRO · 2023—25', title: 'AP, Vendor Pay & Settlements', desc: 'What carriers owe drivers and vendors, synced to their books.', hl: ['QuickBooks AP sync and settlement warnings', 'Vendor pay, per diem disputes, QBD → QBO migration'], stack: ['React', 'Node.js', 'QuickBooks Online'] },
-      { no: 'W/05', tag: 'PORTPRO · 2023—26', title: 'Dispatcher Board & Planner', desc: 'The screen dispatchers keep open all day.', hl: ['Batch Update Moves, change-routing modal', 'Faster board search; react-data-grid with infinite scroll'], stack: ['React', 'Redux Toolkit', 'react-data-grid'] },
-      { no: 'W/06', tag: 'PORTPRO · 2022—26', title: 'Driver Messaging & AI Agents', desc: 'From live sync and chat in 2022 to agents in Control Tower today.', hl: ['Smart Driver Messaging channels and broadcasts', 'Document validation agent; agent chat with uploads'], stack: ['Pusher', 'Socket.io', 'Claude Agents'] }
-    ];
-    var personal = [
-      { no: 'P/01', tag: 'AGENTIC · DESKTOP', title: 'Triage Agent', desc: 'Ticket in, PR out: reproduces the bug, writes the fix, runs QA, opens a PR and comments back.', hl: ['Five scoped agents with evidence-gated handoffs', 'Schema-driven router front door; Zoekt search 10–25× faster'], stack: ['Claude Agent SDK', 'MCP', 'MongoDB', 'FastAPI', 'Electron'], links: [{ label: 'Router repo', href: 'https://github.com/lamadev7/generic-traige-agent' }] },
-      { no: 'P/02', tag: '2025 · SOLO', title: 'Technical Report Reviewer', desc: 'Flags critical and major issues in reports; emails feedback only after approval.', hl: ['Claude / OpenAI / Gemini adapters, SSE progress', '~90% input-cost savings via prompt caching'], stack: ['Next.js 16', 'Postgres', 'Prisma', 'Playwright'], links: [{ label: 'GitHub', href: 'https://github.com/lamadev7/technical-report-reviewer-agent' }] },
-      { no: 'P/03', tag: '2025 · SOLO', title: 'Job Apply Scout', desc: 'Scans LinkedIn and Indeed in a live browser and ranks postings by skill match.', hl: ['Three-tier resume parsing', 'Deterministic, explainable match scores'], stack: ['Next.js 16', 'Playwright', 'Prisma', 'SQLite'], links: [{ label: 'GitHub', href: 'https://github.com/lamadev7/Job-Apply-Scout' }] },
-      { no: 'P/04', tag: '2024 · CONTRIBUTOR', title: 'SkillReal Payload CMS', desc: 'Headless CMS backend: schema-first content, auth, media and admin tooling.', hl: ['Schema-first collections', 'Auth, media and editor tooling'], stack: ['Payload CMS', 'TypeScript', 'MongoDB'], links: [{ label: 'GitHub', href: 'https://github.com/SkillReal-LTD/skillreal-payload' }] },
-      { no: 'P/05', tag: '2023 · SOLO', title: 'Blockchain Election dApp', desc: 'On-chain voting via MetaMask with voter verification and tamper-proof tallies.', hl: ['Solidity + Hardhat contracts', 'PM2-clustered Express API, Jest + Supertest'], stack: ['Solidity', 'Web3.js', 'Next.js', 'Express'], links: [{ label: 'Live', href: 'https://dappvote.vercel.app' }, { label: 'GitHub', href: 'https://github.com/lamaparbat/BLOCKCHAIN-ELECTION-DAPP' }] }
-    ];
-    var norm = function (list) { return list.map(function (p) { if (!p.links) p.links = []; p.note = p.links.length ? '' : 'Internal · PortPro'; return p; }); };
-    var tabs = [['overview', 'Profile'], ['projects', 'Projects (11)'], ['skills', 'Skills']].map(function (t) { var on = tab === t[0]; return { label: t[1], sel: on ? 'true' : 'false', bc: on ? '#316add' : 'transparent', c: on ? '#172a41' : '#687d96', go: function () { s.setState({ tab: t[0] }); } }; });
+    var CH = s.chapters(), o = s.sto, C = o.k >= 0 ? CH[o.k] : null, TH = !C && o.tk >= 0 ? CH[o.tk] : null, bk = st.bk || 0, B = CH[bk], pad = function (k) { return String(k + 1).padStart(2, '0'); };
+    var say = C ? { mode: 'say', no: pad(o.k), date: C.date, place: C.place, title: C.title, line: C.lines[o.i], dots: C.lines.map(function (l, i) { return i < o.i || (i === o.i && o.done) ? 'done' : i === o.i ? 'now' : 'todo'; }), ach: C.ach && (o.i >= 1 || o.done) ? C.ach : '', cta: o.k === s.NM - 1 && o.i === C.lines.length - 1 } : TH ? { mode: 'think', line: TH.w, dots: [] } : null;
+    if (say) s.lastSay = say; else say = s.lastSay || { mode: '', line: '', dots: [] };
+    var story = Object.assign({}, say, { live: C ? C.title + '. ' + C.lines[o.i] : '', bar: !!st.sbar, auto: !!s.auto, barNo: pad(bk), barTotal: pad(s.NM - 1), barDate: B.date, barTitle: B.title, first: bk <= 0, last: bk >= s.NM - 1 });
     var go = function (toExp) { return function () { if (s.isExp() === toExp) return; s.setState({ exp: toExp }); s.scramble(toExp ? s.wExp : s.wEng, toExp ? 'EXPLORER' : 'ENGINEER'); }; };
     return {
       r: s._r,
@@ -1188,44 +1564,23 @@ export class JourneyEngine {
       introKicker: exp ? 'TREKKER · RIDER · PHOTOGRAPHER' : 'FULL-STACK TYPESCRIPT ENGINEER · KATHMANDU',
       introLine: exp ? 'I chase trails and summits.' : 'I build software end to end.',
       introP: exp ? 'When I’m not shipping, I’m on a trek, a bike or behind a camera — from the plains of Sarlahi, where I grew up, to the high Himalaya.' : 'Interfaces, APIs, data, cloud and AI agents — four years of shipping, and the road that got me here from the Terai plains of Sarlahi.',
-      eng: eng, exp: exps, isDayI: !((st.light === 'night') || (st.light !== 'day' && (s.nf || 0) > 0.5)), isNight: ((st.light === 'night') || (st.light !== 'day' && (s.nf || 0) > 0.5)) ? true : false, lightT: st.light === 'day' ? 'Light mode (forced) · click for night' : st.light === 'night' ? 'Night mode (forced) · click for day' : 'Following your clock · click to switch', sndOn: st.snd ? 'true' : 'false', sndC: st.snd ? '#ffffff' : '#a3b3c6', sndT: st.snd ? 'Sound on · click to mute' : 'Sound off · click for the story score', cardsOn: (st.cards === false) ? 'false' : 'true', cardsC: (st.cards === false) ? '#a3b3c6' : '#ffffff', cardsT: (st.cards === false) ? 'Step cards off · click to explain each step' : 'Step cards on · click to hide (click a pin to hide one)',
+      story: story, isDayI: !((st.light === 'night') || (st.light !== 'day' && (s.nf || 0) > 0.5)), isNight: ((st.light === 'night') || (st.light !== 'day' && (s.nf || 0) > 0.5)) ? true : false, lightT: st.light === 'day' ? 'Light mode (forced) · click for night' : st.light === 'night' ? 'Night mode (forced) · click for day' : 'Following your clock · click to switch', sndOn: st.snd ? 'true' : 'false', sndC: st.snd ? '#ffffff' : '#a3b3c6', sndT: st.snd ? 'Sound on · click to mute' : 'Sound off · click to turn on',
       isEngA: exp ? 'false' : 'true', isExpA: exp ? 'true' : 'false', engTab: exp ? '-1' : '0', expTab: exp ? '0' : '-1', isEngB: !exp, isExpB: exp,
       engC: exp ? 'rgba(255,255,255,.5)' : '#ffffff', expC: exp ? '#ffffff' : 'rgba(255,255,255,.5)',
       ulX: exp ? 162 : 18, ulC: exp ? '#f4b961' : '#719ef9',
       setEng: go(false), setExp: go(true),
       swKey: function (e) { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); go(!s.isExp())(); var b = e.currentTarget.querySelectorAll('button'); if (b[s.isExp() ? 0 : 1]) b[s.isExp() ? 0 : 1].focus(); } },
-      badges: achIdx.map(function (k) { var on = k < passed; return { bc: on ? '#f4b961' : 'rgba(219,226,235,.45)', bg: on ? '#f4b961' : 'transparent', sh: on ? '0 0 12px rgba(244,185,97,.7)' : 'none' }; }),
-      achText: unlocked + ' / ' + achIdx.length + ' MILESTONES', achLabel: unlocked + ' of ' + achIdx.length + ' achievements unlocked',
-      pins: eng.map(function (m, k) { return { left: 140 + (s.pinX(k) / s.WORLD) * (s.VW - 400), aria: 'Go to step ' + (k + 1) + ': ' + (exp ? exps[k].title : m.date + ', ' + m.title), go: function () { s.setT(s.pinX(k) - s.TX); } }; }),
-      rv: !!st.rv, tabs: tabs,
-      tabOverview: tab === 'overview', tabProjects: tab === 'projects', tabSkills: tab === 'skills',
-      totalExp: s.fmt(tot), totalShort: Math.floor(tot / 12) + '+ yrs',
-      openRV: function () { s.setState({ rv: true, tab: 'overview' }); }, closeRV: function () { s.setState({ rv: false }); if (s.root) s.root.focus(); },
-      stop: function (e) { e.stopPropagation(); if (e.type === 'keydown' && e.key === 'Escape') s.setState({ rv: false }); },
-      fit: ['Full-stack', 'TypeScript', 'React · Next.js', 'Node.js', 'REST · GraphQL', 'MongoDB · PostgreSQL', 'AWS', 'Real-time', 'AI agents · MCP', 'Senior · Contract'],
-      jobs: [
-        { role: 'Senior Full-Stack Engineer', org: 'PortPro', when: 'Jun 2022 — Present', dur: s.fmt(pp), where: 'Lalitpur, Nepal · Full-time · drayOS TMS', c: '#316add', pts: ['Built and own the tariff and pay engines (customer, driver, carrier) and their public API endpoints', 'Shipped unified GPS history (ELD + mobile), live tracking maps and Node 24 upgrades of the tracking and public APIs', 'Integrated Orderful EDI (210/214/990) and QuickBooks AP sync; built vendor pay and settlements', 'Component design system that cut new-screen lead time by ~40%', 'Building AI agents: document validation, agent chat and an orchestrator over dispatcher, billing and CSR agents'] },
-        { role: 'Final Year Project Supervisor', org: 'Herald College Kathmandu', when: 'Aug 2025 — Apr 2026', dur: s.fmt(s.months(2025, 8, 2026, 4)), where: 'Kathmandu · Part-time', c: '#65c466', pts: ['Mentored ~12 capstone teams through architecture reviews and agentic-pattern workshops'] },
-        { role: 'Frontend Developer', org: 'Princelab Pvt. Ltd.', when: 'Jan 2022 — Jul 2022', dur: s.fmt(s.months(2022, 1, 2022, 7)), where: 'Kathmandu · Remote', c: '#879aaf', pts: ['Built Next.js marketing and product surfaces'] }
-      ],
-      archive: [{ title: 'BUILT AT PORTPRO · 2022 — NOW', items: norm(work) }, { title: 'PERSONAL & OPEN SOURCE', items: norm(personal) }],
-      skills: [
-        { title: 'Languages', items: ['TypeScript', 'JavaScript', 'Node.js', 'Python', 'Solidity'] },
-        { title: 'Frontend', items: ['React', 'Next.js', 'Redux Toolkit', 'TanStack Query', 'Zustand', 'react-data-grid', 'Mapbox GL', 'Leaflet', 'Tailwind', 'React Native · Expo'] },
-        { title: 'Backend & APIs', items: ['Express', 'Hapi.js', 'REST', 'GraphQL', 'Webhooks', 'FastAPI', 'Payload CMS', 'Prisma', 'Sequelize'] },
-        { title: 'Data & Real-time', items: ['MongoDB', 'PostgreSQL', 'TimescaleDB', 'MySQL', 'SQLite', 'Redis', 'RabbitMQ', 'BullMQ', 'Socket.io', 'Pusher', 'Firebase'] },
-        { title: 'Cloud & Ops', items: ['AWS EC2', 'Docker', 'Nginx', 'PM2', 'CloudWatch', 'New Relic', 'CI/CD', 'Jest', 'Playwright'] },
-        { title: 'AI & Integrations', items: ['Claude Agent SDK', 'MCP', 'Google ADK', 'OpenAI', 'Gemini', 'Orderful EDI', 'QuickBooks Online', 'ELD'] }
-      ],
-      begin: function () { s.setT(s.pinX(0) - s.TX); if (!s.au) s.audioOn(); },
-      toggleSnd: function () { if (s.au && !s.au.muted) s.audioOff(); else s.audioOn(); },
+      pins: CH.map(function (m, k) { return { left: 140 + (s.pinX(k) / s.WORLD) * (s.VW - 280), aria: 'Go to chapter ' + (k + 1) + ': ' + m.date + ', ' + m.title, go: function () { s.manual(); s.setT(s.pinCam(k)); } }; }),
+      begin: function () { s.auto = true; s.setState({ auto: true }); s.goCh(0); if (s.sndPref) s.audioOn(); },
+      storyToggle: function () { if (s.auto) { s.auto = false; s.hold = true; s.tour = null; } else { s.auto = true; s.hold = false; var o = s.sto; if (o.k === s.NM - 1 && o.done) s.goCh(0); else if (o.k < 0 && !s.tour) s.goCh(s.curCh() + 1); } s.setState({ auto: s.auto }); },
+      storyPrev: function () { var c = s.curCh(); s.goCh(s.sto.k >= 0 || s.tour ? c - 1 : c); },
+      storyNext: function () { s.goCh(s.curCh() + 1); },
+      toggleSnd: function () { if (s.sndPref) s.audioOff(); else s.audioOn(); },
       toggleLight: function () { var cur = (s.state && s.state.light) || 'auto', nf = s.nf || 0; var next = cur === 'auto' ? (nf > 0.5 ? 'day' : 'night') : cur === 'day' ? 'night' : 'day'; s.setState({ light: next }); },
-      autoLight: function () { s.setState({ light: 'auto' }); }, goHome: function () { s.setT(0); },
-      onWheel: function (e) { if (s.state && s.state.rv) return; var d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY; if (e.deltaMode === 1) d *= 32; s.setT(s.tc + d * 0.55); },
+      autoLight: function () { s.setState({ light: 'auto' }); }, goHome: function () { s.manual(); s.setT(0); },
+      onWheel: function (e) { var d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY; if (e.deltaMode === 1) d *= 32; s.manual(); s.setT(s.tc + d * 0.55); clearTimeout(s.snapT); s.snapT = setTimeout(function () { s.snapCh(); }, 420); },
       onKey: function (e) {
-        if (s.state && s.state.rv) { if (e.key === 'Escape') s.setState({ rv: false }); return; }
-        if (s.state && s.state.mapBig) { if (e.key === 'Escape' || e.key === 'm' || e.key === 'M') s.setState({ mapBig: false }); return; }
-        if (e.key === 'm' || e.key === 'M') { s.setState({ mapBig: true }); return; }
+        if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'ArrowLeft', 'ArrowUp', 'PageUp', 'Home', 'End'].indexOf(e.key) >= 0) s.manual();
         if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') s.step(1);
         if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') s.step(-1);
         if (e.key === 'Home') s.setT(0);
@@ -1233,10 +1588,9 @@ export class JourneyEngine {
         if (e.key === 'e' || e.key === 'E') go(!s.isExp())();
       },
       onMove: function (e) { if (!s.root) return; var r = s.root.getBoundingClientRect(), sc = r.width / s.VW || 1; s.tmx = ((e.clientX - r.left) / sc / s.VW - 0.5) * 2; s.tmy = ((e.clientY - r.top) / sc / s.VH - 0.5) * 2; },
-      onDown: function (e) { if (e.button !== 0 || (s.state && s.state.rv)) return; var r = s.root.getBoundingClientRect(); s.drag = { x: e.clientX, y: e.clientY, t: s.tc, sc: r.width / s.VW || 1, r: r, moved: false }; },
-      onPMove: function (e) { if (!s.drag) return; var dx = (e.clientX - s.drag.x) / s.drag.sc; if (Math.abs(dx) > 6) { s.drag.moved = true; s.setT(s.drag.t - dx * 1.6); } },
-      onUp: function (e) { if (!s.drag) return; var dg = s.drag; s.drag = null; if (!dg.moved && e && e.clientX != null && s.pinScr) { var lx = (e.clientX - dg.r.left) / dg.sc, ly = (e.clientY - dg.r.top) / dg.sc; if (s.state && s.state.mapBig) { s.setState({ mapBig: false }); return; } var MR = s.mapRect; if (MR && lx >= MR.x && lx <= MR.x + MR.w && ly >= MR.y && ly <= MR.y + MR.h) { s.setState({ mapBig: true }); return; } for (var k = 0; k < s.pinScr.length; k++) { var P = s.pinScr[k]; if (P.vis && Math.hypot(P.x - lx, P.y - ly) < 40) { s.hid[k] = !s.hid[k]; return; } } } },
-      toggleCards: function () { s.hid = {}; s.setState({ cards: (s.state && s.state.cards === false) ? true : false }); }
+      onDown: function (e) { if (e.button !== 0) return; var r = s.root.getBoundingClientRect(); s.drag = { x: e.clientX, y: e.clientY, t: s.tc, sc: r.width / s.VW || 1, r: r, moved: false }; },
+      onPMove: function (e) { if (!s.drag) return; var dx = (e.clientX - s.drag.x) / s.drag.sc; if (Math.abs(dx) > 6) { if (!s.drag.moved) s.manual(); s.drag.moved = true; s.setT(s.drag.t - dx * 1.6); } },
+      onUp: function (e) { if (!s.drag) return; var dg = s.drag; s.drag = null; if (dg.moved) s.snapCh(); if (!dg.moved && e && e.clientX != null && s.pinScr) { var lx = (e.clientX - dg.r.left) / dg.sc, ly = (e.clientY - dg.r.top) / dg.sc; for (var k = 0; k < s.pinScr.length; k++) { var P = s.pinScr[k]; if (P.vis && Math.hypot(P.x - lx, P.y - ly) < 40) { s.manual(); s.setT(s.pinCam(k)); return; } } } }
     };
   }
 }

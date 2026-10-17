@@ -1,0 +1,248 @@
+{
+ "voice": "Aman",
+ "rate": 170,
+ "breath": 0.32,
+ "total": 202.1,
+ "chapters": [
+  {
+   "id": "sarlahi",
+   "lines": [
+    {
+     "src": "/voice/sarlahi-0.m4a",
+     "text": "I’m Parbat Lama, and my story starts here, in Sarlahi, on the plains of Nepal’s Terai.",
+     "duration": 5.902
+    },
+    {
+     "src": "/voice/sarlahi-1.m4a",
+     "text": "This is where I did my basic schooling: a schoolboy from the Terai, with a long road ahead.",
+     "duration": 5.646
+    },
+    {
+     "src": "/voice/sarlahi-2.m4a",
+     "text": "Walk with me. The road climbs north from here, all the way to the Himalaya.",
+     "duration": 4.848
+    }
+   ]
+  },
+  {
+   "id": "uniglobe",
+   "lines": [
+    {
+     "src": "/voice/uniglobe-0.m4a",
+     "text": "In 2019 I moved to Kathmandu for my +2 at Uniglobe SS / College in Kamaladi.",
+     "duration": 5.664
+    },
+    {
+     "src": "/voice/uniglobe-1.m4a",
+     "text": "I studied Management with Computer Science as my major, from January 2019 to December 2020.",
+     "duration": 6.859
+    },
+    {
+     "src": "/voice/uniglobe-2.m4a",
+     "text": "College buses, a futsal ground, a basketball court, and my very first Computer Science classes.",
+     "duration": 6.46
+    }
+   ]
+  },
+  {
+   "id": "herald",
+   "lines": [
+    {
+     "src": "/voice/herald-0.m4a",
+     "text": "In February 2021 I began a BSc (Hons) in Information Technology at Herald College Kathmandu.",
+     "duration": 7.571
+    },
+    {
+     "src": "/voice/herald-1.m4a",
+     "text": "Learning in class, and itching to build something real.",
+     "duration": 3.173
+    },
+    {
+     "src": "/voice/herald-2.m4a",
+     "text": "Less than a year in, I was already working as a developer alongside my studies.",
+     "duration": 5.023
+    }
+   ]
+  },
+  {
+   "id": "princelab",
+   "lines": [
+    {
+     "src": "/voice/princelab-0.m4a",
+     "text": "January 2022 brought my first role in tech: Frontend Developer at Princelab, working remotely.",
+     "duration": 6.914
+    },
+    {
+     "src": "/voice/princelab-1.m4a",
+     "text": "I built interfaces in Next.js, TypeScript and Tailwind.",
+     "duration": 3.917
+    },
+    {
+     "src": "/voice/princelab-2.m4a",
+     "text": "A short, focused stint until July 2022: I shipped fast, and learned faster.",
+     "duration": 6.016
+    }
+   ]
+  },
+  {
+   "id": "portpro",
+   "lines": [
+    {
+     "src": "/voice/portpro-0.m4a",
+     "text": "In June 2022 I joined PortPro in Lalitpur. Today I’m a Senior Full-Stack Engineer there.",
+     "duration": 6.205
+    },
+    {
+     "src": "/voice/portpro-1.m4a",
+     "text": "We build drayOS, a logistics TMS for container drayage: trucking containers between ports, rail yards and warehouses.",
+     "duration": 8.3
+    },
+    {
+     "src": "/voice/portpro-2.m4a",
+     "text": "On the front end: performance work, live maps in Mapbox GL and React Leaflet, and a shared design system.",
+     "duration": 6.936
+    },
+    {
+     "src": "/voice/portpro-3.m4a",
+     "text": "Behind it, Node with Express and Hapi, MongoDB and Sequelize, real-time Socket.io and Pusher, and AWS CI/CD.",
+     "duration": 9.446
+    },
+    {
+     "src": "/voice/portpro-4.m4a",
+     "text": "My component design system cut the lead time for new screens by about 40%.",
+     "duration": 5.014
+    }
+   ]
+  },
+  {
+   "id": "aaa-2023",
+   "lines": [
+    {
+     "src": "/voice/aaa-2023-0.m4a",
+     "text": "In 2023 I received the AAA Scholarship at Herald College.",
+     "duration": 4.478
+    },
+    {
+     "src": "/voice/aaa-2023-1.m4a",
+     "text": "I earned it while working at PortPro and studying for my degree.",
+     "duration": 4.078
+    },
+    {
+     "src": "/voice/aaa-2023-2.m4a",
+     "text": "Two roads at once, work and study, and I kept both of them moving.",
+     "duration": 4.173
+    }
+   ]
+  },
+  {
+   "id": "graduation",
+   "lines": [
+    {
+     "src": "/voice/graduation-0.m4a",
+     "text": "October 2023: I graduated with a BSc (Hons) in Information Technology from Herald College.",
+     "duration": 6.981
+    },
+    {
+     "src": "/voice/graduation-1.m4a",
+     "text": "First Class Honours, the top classification, earned while shipping production code at PortPro.",
+     "duration": 5.389
+    },
+    {
+     "src": "/voice/graduation-2.m4a",
+     "text": "Graduation ended a course. It didn’t end the learning.",
+     "duration": 3.397
+    }
+   ]
+  },
+  {
+   "id": "aaa-2024",
+   "lines": [
+    {
+     "src": "/voice/aaa-2024-0.m4a",
+     "text": "In 2024 the AAA Scholarship came my way a second time.",
+     "duration": 4.468
+    },
+    {
+     "src": "/voice/aaa-2024-1.m4a",
+     "text": "Two years running: consistency, not luck.",
+     "duration": 2.89
+    },
+    {
+     "src": "/voice/aaa-2024-2.m4a",
+     "text": "And it was time to send the rope back down for the students coming up behind me.",
+     "duration": 4.873
+    }
+   ]
+  },
+  {
+   "id": "supervisor",
+   "lines": [
+    {
+     "src": "/voice/supervisor-0.m4a",
+     "text": "From August 2025 to April 2026, I went back to Herald as a Final Year Project Supervisor.",
+     "duration": 6.946
+    },
+    {
+     "src": "/voice/supervisor-1.m4a",
+     "text": "I guided about 12 student teams through their final-year projects.",
+     "duration": 3.83
+    },
+    {
+     "src": "/voice/supervisor-2.m4a",
+     "text": "Blockchain voting, AI recommendation engines for medicine, logistics and mental health, and full-stack platforms.",
+     "duration": 7.265
+    },
+    {
+     "src": "/voice/supervisor-3.m4a",
+     "text": "Teaching sharpened everything I thought I already knew.",
+     "duration": 3.097
+    }
+   ]
+  },
+  {
+   "id": "agents",
+   "lines": [
+    {
+     "src": "/voice/agents-0.m4a",
+     "text": "Now I’m building an orchestrator AI agent at PortPro.",
+     "duration": 3.794
+    },
+    {
+     "src": "/voice/agents-1.m4a",
+     "text": "It supervises dispatcher, billing and CSR sub-agents: it hands each one its task, and checks the result.",
+     "duration": 7.295
+    },
+    {
+     "src": "/voice/agents-2.m4a",
+     "text": "From a schoolboy in the Terai to software that coordinates other AI. The air thins, the view widens.",
+     "duration": 6.749
+    }
+   ]
+  },
+  {
+   "id": "next",
+   "lines": [
+    {
+     "src": "/voice/next-0.m4a",
+     "text": "Over four years of shipping production software, and the next summit is already in view.",
+     "duration": 5.086
+    },
+    {
+     "src": "/voice/next-1.m4a",
+     "text": "Away from the keyboard I trek, ride and take photographs. The dream is Everest.",
+     "duration": 5.319
+    },
+    {
+     "src": "/voice/next-2.m4a",
+     "text": "Right now, I’m open to senior and contract roles.",
+     "duration": 3.443
+    },
+    {
+     "src": "/voice/next-3.m4a",
+     "text": "Open my résumé, or just say hello. I’d love to hear what you’re building.",
+     "duration": 4.614
+    }
+   ]
+  }
+ ]
+}
