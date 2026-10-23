@@ -30,11 +30,17 @@ export interface SceneAnchors {
   focus?: V3;
   /** plot footprint for terrain flattening and clearing: centre and half sizes */
   plot: { x: number; z: number; rx: number; rz: number };
+  /** the plot's identifying sign or banner (centre, width, height, local): kept fully in frame at the stop */
+  sign?: { c: V3; w: number; h: number };
+  /** extra points (local) the stop shot must also show, e.g. the yard behind him */
+  ctx?: V3[];
 }
 
 export interface SceneEvents {
   /** narration line index changed; scenes use it for handovers, the cap toss, applause */
   line?: (i: number, n: number) => void;
+  /** a body-language beat from the narration script (e.g. 'toss') */
+  beat?: (b: string) => void;
 }
 
 export interface BuiltScene {
@@ -44,6 +50,11 @@ export interface BuiltScene {
   events: SceneEvents;
   /** called by the hero controller for props he takes or hands over */
   props?: Record<string, THREE.Object3D>;
+  /** walkable height inside the plot (stages, steps, plinths), local; 0 elsewhere */
+  floor?: (x: number, z: number) => number;
+  /** scene-specific calls (e.g. launchCap for the hero's mortarboard), local coordinates */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  api: Record<string, (...a: any[]) => void>;
   dispose: () => void;
 }
 

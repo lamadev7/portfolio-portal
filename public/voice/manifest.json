@@ -2,7 +2,7 @@
  "voice": "Aman",
  "rate": 170,
  "breath": 0.32,
- "total": 202.1,
+ "total": 261.6,
  "chapters": [
   {
    "id": "sarlahi",
@@ -35,7 +35,7 @@
     {
      "src": "/voice/uniglobe-1.m4a",
      "text": "I studied Management with Computer Science as my major, from January 2019 to December 2020.",
-     "duration": 6.859
+     "duration": 6.856
     },
     {
      "src": "/voice/uniglobe-2.m4a",
@@ -54,8 +54,8 @@
     },
     {
      "src": "/voice/herald-1.m4a",
-     "text": "Learning in class, and itching to build something real.",
-     "duration": 3.173
+     "text": "It ran until October 2023, and it shaped everything that came after.",
+     "duration": 4.564
     },
     {
      "src": "/voice/herald-2.m4a",
@@ -110,7 +110,7 @@
     {
      "src": "/voice/portpro-4.m4a",
      "text": "My component design system cut the lead time for new screens by about 40%.",
-     "duration": 5.014
+     "duration": 5.011
     }
    ]
   },
@@ -124,13 +124,13 @@
     },
     {
      "src": "/voice/aaa-2023-1.m4a",
-     "text": "I earned it while working at PortPro and studying for my degree.",
-     "duration": 4.078
+     "text": "I earned it in my final year, while working at PortPro and finishing my degree.",
+     "duration": 5.038
     },
     {
      "src": "/voice/aaa-2023-2.m4a",
-     "text": "Two roads at once, work and study, and I kept both of them moving.",
-     "duration": 4.173
+     "text": "Work showed me what to learn. The degree showed me how.",
+     "duration": 3.62
     }
    ]
   },
@@ -169,8 +169,8 @@
     },
     {
      "src": "/voice/aaa-2024-2.m4a",
-     "text": "And it was time to send the rope back down for the students coming up behind me.",
-     "duration": 4.873
+     "text": "And soon, it was time to give some of it back.",
+     "duration": 2.787
     }
    ]
   },
@@ -191,11 +191,6 @@
      "src": "/voice/supervisor-2.m4a",
      "text": "Blockchain voting, AI recommendation engines for medicine, logistics and mental health, and full-stack platforms.",
      "duration": 7.265
-    },
-    {
-     "src": "/voice/supervisor-3.m4a",
-     "text": "Teaching sharpened everything I thought I already knew.",
-     "duration": 3.097
     }
    ]
   },
@@ -214,8 +209,8 @@
     },
     {
      "src": "/voice/agents-2.m4a",
-     "text": "From a schoolboy in the Terai to software that coordinates other AI. The air thins, the view widens.",
-     "duration": 6.749
+     "text": "From a schoolboy in the Terai to software that coordinates other AI.",
+     "duration": 4.399
     }
    ]
   },
@@ -240,7 +235,112 @@
     {
      "src": "/voice/next-3.m4a",
      "text": "Open my résumé, or just say hello. I’d love to hear what you’re building.",
-     "duration": 4.614
+     "duration": 4.628
+    }
+   ]
+  },
+  {
+   "id": "chitwan",
+   "lines": [
+    {
+     "src": "/voice/chitwan-0.m4a",
+     "text": "Chitwan National Park, in the Inner Terai: sal forest, tall grass and slow rivers.",
+     "duration": 5.436
+    },
+    {
+     "src": "/voice/chitwan-1.m4a",
+     "text": "Home to the one-horned rhino, and a UNESCO World Heritage Site since 1984.",
+     "duration": 5.432
+    },
+    {
+     "src": "/voice/chitwan-2.m4a",
+     "text": "From here, the road leaves the plains and climbs into the hills.",
+     "duration": 3.965
+    }
+   ]
+  },
+  {
+   "id": "lumbini",
+   "lines": [
+    {
+     "src": "/voice/lumbini-0.m4a",
+     "text": "Lumbini, in Rupandehi: the birthplace of the Buddha.",
+     "duration": 3.382
+    },
+    {
+     "src": "/voice/lumbini-1.m4a",
+     "text": "The Maya Devi Temple marks the spot, beside the sacred pool and the Ashoka Pillar.",
+     "duration": 5.647
+    },
+    {
+     "src": "/voice/lumbini-2.m4a",
+     "text": "Monasteries built by many countries line the long canal of the Monastic Zone.",
+     "duration": 4.424
+    }
+   ]
+  },
+  {
+   "id": "pokhara",
+   "lines": [
+    {
+     "src": "/voice/pokhara-0.m4a",
+     "text": "Phewa Lake in Pokhara, under Machhapuchhre, the Fishtail mountain.",
+     "duration": 4.343
+    },
+    {
+     "src": "/voice/pokhara-1.m4a",
+     "text": "On still days the peaks show in the water, and the boats rest on the shore.",
+     "duration": 4.318
+    },
+    {
+     "src": "/voice/pokhara-2.m4a",
+     "text": "Paragliders launch from Sarangkot, on the ridge above the lake.",
+     "duration": 3.472
+    }
+   ]
+  },
+  {
+   "id": "ranipokhari",
+   "lines": [
+    {
+     "src": "/voice/ranipokhari-0.m4a",
+     "text": "Rani Pokhari, the Queen’s Pond, in the heart of Kathmandu.",
+     "duration": 4.102
+    },
+    {
+     "src": "/voice/ranipokhari-1.m4a",
+     "text": "King Pratap Malla built it in 1670, with a small temple at its centre.",
+     "duration": 4.977
+    }
+   ]
+  },
+  {
+   "id": "swayambhu",
+   "lines": [
+    {
+     "src": "/voice/swayambhu-0.m4a",
+     "text": "Swayambhunath, on its hill west of the city.",
+     "duration": 2.903
+    },
+    {
+     "src": "/voice/swayambhu-1.m4a",
+     "text": "The stupa’s painted eyes look out over the whole Kathmandu Valley.",
+     "duration": 3.801
+    }
+   ]
+  },
+  {
+   "id": "durbar",
+   "lines": [
+    {
+     "src": "/voice/durbar-0.m4a",
+     "text": "Kathmandu Durbar Square, at Basantapur: the old royal palace and its temples.",
+     "duration": 4.857
+    },
+    {
+     "src": "/voice/durbar-1.m4a",
+     "text": "Pagoda roofs and carved windows, centuries of Newar craft.",
+     "duration": 4.207
     }
    ]
   }

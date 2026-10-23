@@ -82,6 +82,8 @@ export default function ExplorerMap({ active, standalone = false }: { active: bo
   const [stage, setStage] = useState(0);
   const [hint, setHint] = useState(false);
   const [credits, setCredits] = useState(false);
+  const [travel, setTravel] = useState<{ name: string; km: number } | null>(null);
+  const [logbook, setLogbook] = useState(false);
 
   const shown = useMemo(
     () => places.filter((p) => (filter === "all" ? true : filter === "nepal" ? p.iso === NEPAL_ISO : p.iso !== NEPAL_ISO)),
@@ -138,8 +140,11 @@ export default function ExplorerMap({ active, standalone = false }: { active: bo
         if (compassRef.current) compassRef.current.style.transform = `rotate(${-deg}deg)`;
       },
       onStage: setStage,
+      onTravel: setTravel,
+      onLogbook: setLogbook,
     };
     const c = new ExplorerController(el, places, hooks, reduced);
+    c.setFramePad(padFor(panelRef.current, false));
     ctl.current = c;
     setStatus("loading");
     void c.init();
@@ -160,6 +165,10 @@ export default function ExplorerMap({ active, standalone = false }: { active: bo
   useEffect(() => {
     ctl.current?.setVisible(shown.map((p) => p.id));
   }, [shown, status]);
+
+  useEffect(() => {
+    ctl.current?.setFramePad(padFor(panelOpen, false));
+  }, [panelOpen, status]);
 
   useEffect(() => {
     const el = rootRef.current;
@@ -197,6 +206,8 @@ export default function ExplorerMap({ active, standalone = false }: { active: bo
       data-panel={panelOpen ? "open" : "closed"}
       data-sheet={sheetOpen ? "open" : "closed"}
       data-card={current ? "open" : "closed"}
+      data-travel={travel ? "on" : "off"}
+      data-film={travel || flying ? "on" : "off"}
       aria-label="Explorer: map of places"
       aria-hidden={active ? undefined : true}
     >
@@ -218,13 +229,37 @@ export default function ExplorerMap({ active, standalone = false }: { active: bo
         </div>
       ) : null}
 
-      <div className={`ex-caption ex-glass${flying ? " is-on" : ""}`} aria-hidden={!flying}>
-        <span className="ex-kicker">Flying north</span>
-        <span className="ex-caption-stage">{STAGES[stage]}</span>
-        <span className="ex-caption-track" aria-hidden="true">
-          {STAGES.map((s, i) => (
-            <i key={s} className={i <= stage ? "is-past" : undefined} />
-          ))}
+      <div className="ex-sunglow" aria-hidden="true" />
+      <div className="ex-vignette" aria-hidden="true" />
+      <div className="ex-bars" aria-hidden="true" />
+
+      <div className={`ex-caption ex-glass${flying || travel ? " is-on" : ""}`} aria-hidden={!(flying || travel)}>
+        {travel ? (
+          <>
+            <span className="ex-kicker">Travelling to</span>
+            <span className="ex-caption-stage">{travel.name}</span>
+            {travel.km >= 1 ? <span className="ex-caption-km">{travel.km.toLocaleString("en-US")} km</span> : null}
+          </>
+        ) : (
+          <>
+            <span className="ex-kicker">Following the trail north</span>
+            <span className="ex-caption-stage">{STAGES[stage]}</span>
+            <span className="ex-caption-track" aria-hidden="true">
+              {STAGES.map((s, i) => (
+                <i key={s} className={i <= stage ? "is-past" : undefined} />
+              ))}
+            </span>
+          </>
+        )}
+      </div>
+
+      <div className={`ex-logbook ex-glass${logbook && !current && !travel ? " is-on" : ""}`} aria-hidden={!logbook || !!current}>
+        <span className="ex-kicker">Logbook</span>
+        <span className="ex-logbook-n">
+          {pad2(stats.places)} places · {pad2(stats.countries)} {stats.countries === 1 ? "country" : "countries"}
+        </span>
+        <span className="ex-logbook-sub">
+          {stats.abroad ? "Gold arcs trace trips out from Kathmandu. " : ""}Pick a place to travel there.
         </span>
       </div>
 
@@ -397,7 +432,14 @@ export default function ExplorerMap({ active, standalone = false }: { active: bo
       {status !== "nogl" ? (
         <div className="ex-ctl" role="toolbar" aria-label="Map controls">
           <div className="ex-ctl-acts ex-glass">
-            <button type="button" onClick={() => ctl.current?.seeWorld(padFor(panelOpen, false))} aria-label="See the world">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveId(null);
+                ctl.current?.seeWorld(padFor(panelOpen, false));
+              }}
+              aria-label="See the world"
+            >
               <Svg html={iconSvg("globe", 17)} />
               <span className="ex-ctl-lb">See the world</span>
             </button>

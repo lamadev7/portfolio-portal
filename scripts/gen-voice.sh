@@ -25,7 +25,7 @@ say -v '?' | grep -q "^$VOICE_NAME " || { echo "voice $VOICE_NAME is not install
 
 node -e '
 const s = require(process.argv[1]);
-for (const c of s.STORY) c.lines.forEach((l, i) => console.log([c.id, i, (l.say || l.text).replace(/[\t\n]/g, " ")].join("\t")));
+for (const c of s.STORY.concat(s.TRAVEL || [])) c.lines.forEach((l, i) => console.log([c.id, i, (l.say || l.text).replace(/[\t\n]/g, " ")].join("\t")));
 ' "$TMP/story.json" > "$TMP/lines.tsv"
 
 mkdir -p "$OUT"
@@ -42,7 +42,7 @@ done < "$TMP/lines.tsv"
 node -e '
 const fs = require("fs"), s = require(process.argv[1]);
 const dur = {}; for (const r of fs.readFileSync(process.argv[2], "utf8").trim().split("\n")) { const [id, i, d] = r.split("\t"); dur[id + "-" + i] = Math.round(parseFloat(d) * 1000) / 1000; }
-const chapters = s.STORY.map((c) => ({ id: c.id, lines: c.lines.map((l, i) => ({ src: "/voice/" + c.id + "-" + i + ".m4a", text: l.text, duration: dur[c.id + "-" + i] })) }));
+const chapters = s.STORY.concat(s.TRAVEL || []).map((c) => ({ id: c.id, lines: c.lines.map((l, i) => ({ src: "/voice/" + c.id + "-" + i + ".m4a", text: l.text, duration: dur[c.id + "-" + i] })) }));
 const total = chapters.reduce((a, c) => a + c.lines.reduce((b, l) => b + l.duration, 0), 0);
 fs.writeFileSync(process.argv[3], JSON.stringify({ voice: process.argv[4], rate: s.VOICE.rate, breath: s.VOICE.breathMs / 1000, total: Math.round(total * 10) / 10, chapters }, null, 1) + "\n");
 console.log("total " + total.toFixed(1) + "s across " + chapters.reduce((a, c) => a + c.lines.length, 0) + " lines");

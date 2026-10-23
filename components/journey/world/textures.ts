@@ -107,8 +107,7 @@ export const SURF = {
     blot(g, w, h, 30, 175, '0,0,0', 0.02, 0.06, 20, 70);
   }, (g, w, h) => {
     for (let y = 0; y < h; y += 2) for (let x = 0; x < w; x += 2) { const v = ((x + y) / 2) % 2 ? 170 : 90; g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(x, y, 2, 2); }
-    for (let i = 0; i < 9; i++) { const y = h2(i, 177) * h, a = 0.25 + h2(i, 178) * 0.3; const gr = g.createLinearGradient(0, y - 14, 0, y + 14); gr.addColorStop(0, 'rgba(128,128,128,0)'); gr.addColorStop(0.5, `rgba(255,255,255,${a})`); gr.addColorStop(1, 'rgba(128,128,128,0)'); g.fillStyle = gr; g.fillRect(0, y - 14, w, 28); }
-  }, 1.6),
+  }, 0.9),
   denim: () => pair('denim', 256, (g, w, h) => {
     g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
     for (let i = 0; i < 9000; i++) { const x = h2(i, 181) * w, y = h2(i, 182) * h; g.fillStyle = `rgba(${h2(i, 183) > 0.5 ? '255,255,255' : '0,0,30'},${(0.06 + h2(i, 184) * 0.08).toFixed(3)})`; g.fillRect(x, y, 1, 3); }
@@ -177,7 +176,7 @@ export function leafTex(kind: 'mango' | 'broad' | 'fine') {
     g.clearRect(0, 0, w, h); const n = kind === 'fine' ? 900 : 420, L = kind === 'mango' ? 26 : kind === 'broad' ? 18 : 9, Wd = kind === 'mango' ? 6 : kind === 'broad' ? 8 : 3;
     for (let i = 0; i < n; i++) {
       const a = h2(i, 281) * 6.283, r = Math.sqrt(h2(i, 282)) * 112, x = 128 + Math.cos(a) * r, y = 128 + Math.sin(a) * r * 0.9;
-      const hue = kind === 'mango' ? 105 + h2(i, 283) * 25 : 85 + h2(i, 283) * 35, lt = 16 + h2(i, 284) * 22 + (1 - r / 112) * -6 + (y < 100 ? 8 : 0);
+      const hue = kind === 'mango' ? 100 + h2(i, 283) * 25 : 82 + h2(i, 283) * 35, lt = 24 + h2(i, 284) * 24 - (1 - r / 112) * 6 + (y < 100 ? 8 : 0);
       g.fillStyle = `hsl(${hue},${38 + h2(i, 285) * 25}%,${lt}%)`; g.save(); g.translate(x, y); g.rotate(h2(i, 286) * 6.283); g.beginPath(); g.ellipse(0, 0, L * (0.6 + h2(i, 287) * 0.5) / 2, Wd / 2, 0, 0, 6.283); g.fill();
       g.strokeStyle = `hsla(${hue},30%,${lt + 12}%,0.5)`; g.lineWidth = 0.8; g.beginPath(); g.moveTo(-L / 3, 0); g.lineTo(L / 3, 0); g.stroke(); g.restore();
     }
