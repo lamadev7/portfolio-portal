@@ -1,0 +1,57 @@
+/* Pinned meadow hero. The pin holds title, subtitle, meadow and hint as one content-height block, stuck to the
+   top while the spacer below it scrolls past (that scroll turns the meadow). The next section follows the pin
+   directly, so nothing is left blank once it releases. Colours come from the site theme. */
+.wrap { position: relative; }
+.pin { position: sticky; top: var(--head-h, 0px); } /* sticks right under the sticky header, so the turn starts on the first scroll */
+.spacer { height: 230vh; height: 230svh; } /* scroll distance for one full turn */
+.block { position: relative; padding-block: clamp(12px, 3vh, 32px) clamp(16px, 3vh, 28px); }
+
+.stage {
+  position: relative;
+  /* the column width, or less when the viewport is too short for the whole block */
+  width: min(100%, calc((100svh - 530px) * 2.5));
+  min-width: min(100%, 320px);
+  margin: clamp(8px, 2.4vh, 28px) auto 0;
+  aspect-ratio: 2.5;
+  border-radius: 6px;
+  outline: none;
+}
+.stage:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.drift { position: absolute; inset: 0; will-change: transform, opacity; }
+.drift canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+  touch-action: pan-y; cursor: grab; outline: none;
+}
+.stage[data-turning] .drift canvas { cursor: grabbing; }
+/* calm fade-in once the first frame is ready */
+.stage::after {
+  content: ""; position: absolute; inset: 0; background: var(--paper); pointer-events: none;
+  opacity: 1; transition: opacity 0.8s ease 0.1s, background-color 0.9s ease;
+}
+.block[data-ready] .stage::after { opacity: 0; }
+.block[data-still] .stage::after { opacity: 0; }
+.block[data-still], .block[data-still] * { transition: none !important; }
+
+/* quiet hint with a 360-degree progress ring; fades once the turn is complete */
+.hint {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: clamp(10px, 1.8vh, 18px);
+  font-size: 13px; letter-spacing: 0.01em; color: var(--mute);
+  transition: opacity 0.5s ease, color 0.9s ease;
+}
+.block[data-turned] .hint { opacity: 0; }
+.ring { transform: rotate(-90deg); flex: none; }
+.ringTrack, .ringFill { fill: none; stroke-width: 1.5; }
+.ringTrack { stroke: var(--rail); transition: stroke 0.9s ease; }
+.ringFill { stroke: var(--accent); stroke-linecap: round; transition: stroke 0.9s ease; }
+
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* reduced motion: no pinning, no scroll turning; the meadow is a static, keyboard-steppable figure */
+@media (prefers-reduced-motion: reduce) {
+  .pin { position: static; }
+  .spacer { display: none; }
+  .block { padding-block: clamp(28px, 7vh, 88px) 0; }
+  .stage { width: 100%; }
+  .hint { display: none; }
+}

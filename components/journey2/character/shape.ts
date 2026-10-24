@@ -59,7 +59,7 @@ function subtree(s: Skel, root: string) {
 const jointPos = (s: Skel, n: string) => new THREE.Vector3().setFromMatrixPosition(s.bindWorld[s.index[n]]);
 
 function weightOf(g: THREE.BufferGeometry, set: Set<number>) {
-  const J = g.getAttribute("skinIndex"), W = g.getAttribute("skinWeight"), n = J.count, out = new Float32Array(n);
+  const J = g.getAttribute("skinIndex") as THREE.BufferAttribute, W = g.getAttribute("skinWeight") as THREE.BufferAttribute, n = J.count, out = new Float32Array(n);
   for (let i = 0; i < n; i++) { let w = 0; for (let j = 0; j < 4; j++) if (set.has(J.getComponent(i, j))) w += W.getComponent(i, j); out[i] = Math.min(1, w); }
   return out;
 }

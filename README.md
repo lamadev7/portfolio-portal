@@ -1,20 +1,19 @@
-# Parbat Lama — Portfolio (Next.js)
+# Parbat Lama · Portfolio (Next.js)
 
-Production-grade Next.js 14 rebuild of the brutalist-terminal portfolio. TypeScript, App Router, server-rendered sections, dynamic-import Three.js backdrop, organised by responsibility.
+A calm editorial portfolio around a painted meadow hero: 24 painted scenes of the same man and his ragdoll cat on a turntable of waving grass. Next.js 14 App Router, TypeScript, server-rendered pages, and three.js loaded only on the client.
 
 ## Quickstart
 
 ```bash
-cd nextjs
-npm install
-npm run dev   # → http://localhost:3000
+pnpm install
+pnpm dev      # → http://localhost:3000
 ```
 
 ## Production
 
 ```bash
-npm run build
-npm run start
+pnpm build
+pnpm start
 ```
 
 Deploys cleanly on Vercel (zero config), Netlify, Cloudflare Pages, or any Node host.
@@ -25,12 +24,28 @@ Deploys cleanly on Vercel (zero config), Netlify, Cloudflare Pages, or any Node 
 - **React 18.3**
 - **TypeScript 5.5**
 - **Three.js 0.158** (loaded only on the client via `dynamic({ ssr: false })`)
-- **JetBrains Mono** via `next/font/google`
-- Zero CSS framework — design tokens + scoped styles live in `app/globals.css`
+- **Newsreader + Inter** via `next/font/google`
+- No CSS framework. The site's tokens and styles live in `app/(site)/site.css`
 
-## / — Two Trails
+## The site
 
-The home route (`/`) is an interactive 3D story of the road from Sarlahi to the Himalaya (Engineer ⇄ Explorer, Recruiter View, Nepal map, scene soundscape, time-of-day lighting). It lives in `components/journey/`:
+- `app/(site)/`: home (`/`), `/work`, `/work/[slug]`, `/blog`, `/blog/[slug]`, with the shared header, footer and `site.css`.
+- **Themes:** the three dots in the header switch `html[data-theme]` between `day`, `dusk` and `night`. The choice is remembered in `localStorage`, and the hero follows it.
+- `components/meadow/`: the meadow hero (`MeadowHero.tsx` plus the three.js engine). Its paintings live in `public/meadow/scenes/`, described by `public/meadow/scenes.json`.
+- `components/site/`: header, theme dots, footer, scroll reveal, article art.
+- `lib/site/content.ts`: home-page copy (about, domains, agents, modules). Experience, education and stack come from `lib/data/`.
+
+### Adding a project or a post
+
+Add one Markdown file to `content/projects/` or `content/posts/`. The file name is the URL slug. Copy the `_template.md` in each folder; files starting with `_` are ignored, and so is anything marked `draft: true`. `featured: true` puts a project on the home page, and `art: s01`–`s24` picks its painting.
+
+## Earlier experiments
+
+The earlier versions live under `app/(legacy)/` with their own dark styling: `/trails` (Two Trails, the previous home), `/classic`, `/resume`, `/explorer`, `/lab`, `/lab2` and `/v2`.
+
+## /trails — Two Trails
+
+`/trails` is an interactive 3D story of the road from Sarlahi to the Himalaya (Engineer ⇄ Explorer, Recruiter View, Nepal map, scene soundscape, time-of-day lighting). It lives in `components/journey/`:
 
 - `engine.ts` — the three.js world, overlay canvas, audio and scroll state (framework-free class, loaded client-side only)
 - `Journey.tsx` — React chrome rendered from `engine.renderVals()`, scaled to the viewport
@@ -38,7 +53,7 @@ The home route (`/`) is an interactive 3D story of the road from Sarlahi to the 
 - `journey.css` — scoped styles
 - assets: `public/snd/*.mp3` (ambiences), `public/fonts/Sawton*.woff2`
 
-Run `npm run dev` and open http://localhost:3000 (classic V3 portfolio at `/classic`; `/journey` redirects home). Press M for the full map, Esc to close, arrows to step.
+Run `pnpm dev` and open http://localhost:3000/trails (classic V3 portfolio at `/classic`; `/journey` redirects to `/trails`). Press M for the full map, Esc to close, arrows to step.
 
 ## Project layout
 

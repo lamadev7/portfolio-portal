@@ -1,18 +1,35 @@
 import type { Metadata, Viewport } from "next";
-import { JetBrains_Mono } from "next/font/google";
-import "./globals.css";
+import { Inter, JetBrains_Mono, Newsreader } from "next/font/google";
 
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  display: "swap",
+  variable: "--font-sans",
+});
+
+const newsreader = Newsreader({
+  subsets: ["latin"],
+  weight: ["300", "400", "500"],
+  style: ["normal", "italic"],
+  display: "swap",
+  variable: "--font-serif",
+  adjustFontFallback: false,
+});
+
+// Only the legacy routes under app/(legacy) use the mono face.
 const jetbrains = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
   display: "swap",
+  preload: false,
   variable: "--mono-font",
 });
 
 const SITE_URL = "https://lamaparbat.com.np";
-const TITLE = "Parbat Lama — Senior Full-Stack TypeScript Engineer";
+const TITLE = "Parbat Lama · Senior Full-stack AI Engineer";
 const DESCRIPTION =
-  "Senior full-stack TypeScript engineer based in Lalitpur, Nepal. Production React, Node, and agentic systems — building Triage Agent, ADK multi-agent services, and brutalist developer tools.";
+  "Parbat Lama is a Senior Full-stack AI Engineer in Nepal: React, Next.js and Node products, and LLM agents with Google ADK, MCP, RAG and the Claude Agent SDK.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -29,7 +46,7 @@ export const metadata: Metadata = {
     "Next.js",
     "Node.js",
     "agentic AI",
-    "Claude Agent SDK",
+    "Claude",
     "MCP",
     "Nepal",
     "Lalitpur",
@@ -45,14 +62,12 @@ export const metadata: Metadata = {
     url: SITE_URL,
     siteName: "Parbat Lama",
     title: TITLE,
-    description:
-      "Portfolio · React / Next.js / Node / Mongo / Agentic systems. Building Triage Agent + ADK multi-agent services in Lalitpur, Nepal.",
+    description: DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
     title: TITLE,
-    description:
-      "Senior full-stack TypeScript engineer. Agentic AI, production web platforms, brutalist developer tooling.",
+    description: DESCRIPTION,
     creator: "@lamadev7",
   },
   robots: {
@@ -69,26 +84,17 @@ export const metadata: Metadata = {
   alternates: {
     canonical: SITE_URL,
   },
-  icons: {
-    icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
-    ],
-    apple: [
-      { url: "/apple-icon.svg", type: "image/svg+xml" },
-    ],
-  },
-  applicationName: "Parbat Lama · Portfolio",
+  applicationName: "Parbat Lama",
 };
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: dark)",  color: "#0a0b0a" },
-    { media: "(prefers-color-scheme: light)", color: "#0a0b0a" },
-  ],
-  colorScheme: "dark",
+  themeColor: "#f6f4ee",
   width: "device-width",
   initialScale: 1,
 };
+
+// Applied before first paint so a returning visitor never sees the wrong palette flash.
+const THEME_BOOT = `(function(){try{var t=localStorage.getItem("theme");if(t!=="day"&&t!=="dusk"&&t!=="night"){t=matchMedia("(prefers-color-scheme: dark)").matches?"night":"day"}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme="day"}document.documentElement.classList.add("js")})();`;
 
 export default function RootLayout({
   children,
@@ -96,7 +102,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={jetbrains.variable}>
+    <html
+      lang="en"
+      data-theme="day"
+      className={`${inter.variable} ${newsreader.variable} ${jetbrains.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+      </head>
       <body>{children}</body>
     </html>
   );
