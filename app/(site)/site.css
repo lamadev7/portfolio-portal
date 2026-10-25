@@ -352,76 +352,96 @@ button { font: inherit; color: inherit; }
 /* ---------- likes and comments ---------- */
 
 .engage { margin-top: clamp(56px, 7vw, 80px); min-height: 120px; }
-.engage-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; margin-bottom: 40px; font-size: 14px; color: var(--mute); }
+.engage .sec-head { box-shadow: inset 0 -1px 0 var(--line); }
+.engage-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin-bottom: 36px; font-size: 14px; color: var(--mute); }
+.engage-bar svg { display: block; flex: none; }
 .like {
-  display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 16px 0 12px;
-  border: 0; border-radius: 999px; background: none; color: var(--ink); cursor: pointer;
-  box-shadow: inset 0 0 0 1px var(--line2); transition: box-shadow 0.2s ease, color 0.2s ease;
+  display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 13px 0 11px;
+  border: 0; border-radius: 999px; background: none; color: var(--ink); font: inherit; font-size: 14px; line-height: 1; cursor: pointer;
+  box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow 0.2s ease, color 0.2s ease, background-color 0.2s ease;
 }
-.like svg { fill: none; stroke: currentColor; stroke-width: 1.8; transition: fill 0.2s ease, transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1); }
-.like:hover { box-shadow: inset 0 0 0 1px var(--ink); }
-.like.is-on { color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.like.is-on svg { fill: currentColor; transform: scale(1.08); }
-.stat-icon { display: inline-flex; align-items: center; gap: 6px; color: var(--mute); font-variant-numeric: tabular-nums; }
-.engage-bar .stat-icon { font-size: 14px; }
+.like svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; transition: fill 0.2s ease, transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.like:hover { box-shadow: inset 0 0 0 1px var(--line2); }
+.like.is-on { color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent); }
+.like.is-on svg { fill: currentColor; transform: scale(1.06); }
+.stat-icon { display: inline-flex; align-items: center; gap: 6px; line-height: 1; color: var(--mute); font-variant-numeric: tabular-nums; }
+.engage-bar .stat-icon svg { width: 16px; height: 16px; }
 a.stat-icon:hover { color: var(--ink); opacity: 1; }
+.meta .stat-icon { vertical-align: -2px; }
 .meta .stat-icon svg { width: 15px; height: 15px; }
 .meta span + .stat-icon::before { margin-right: 2px; }
 
 /* signed-in reader: initials with a small menu */
-.me { position: relative; align-self: start; }
-.me-btn { padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
-.me-btn:hover .avatar, .me-btn[aria-expanded="true"] .avatar { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3.5px var(--ink); }
+.me { position: relative; }
+.me-btn { display: block; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
+.me-btn:hover .avatar, .me-btn[aria-expanded="true"] .avatar { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--line2); }
 .me-menu {
-  position: absolute; z-index: 5; top: calc(100% + 8px); left: 0; min-width: 210px; padding: 12px; border-radius: 10px;
-  background: var(--paper); box-shadow: 0 0 0 1px var(--line2), 0 12px 30px rgba(0, 0, 0, 0.12);
+  position: absolute; z-index: 5; top: calc(100% + 8px); left: 0; min-width: 200px; padding: 10px; border-radius: 10px;
+  background: var(--paper); box-shadow: 0 0 0 1px var(--line), 0 10px 28px rgba(0, 0, 0, 0.1);
 }
-.me-menu p { font-size: 13px; color: var(--mute); }
-.me-menu b { display: block; margin-top: 2px; font-weight: 600; color: var(--ink); }
+.me-menu p { padding: 2px 4px; font-size: 12.5px; color: var(--mute); }
+.me-menu b { display: block; margin-top: 2px; font-size: 14px; font-weight: 600; color: var(--ink); }
 .me-menu button {
-  width: 100%; margin-top: 10px; padding: 7px 10px; border: 0; border-radius: 7px; background: var(--soft);
+  width: 100%; margin-top: 8px; padding: 7px 8px; border: 0; border-radius: 6px; background: none;
   color: var(--ink); font: inherit; font-size: 13.5px; text-align: left; cursor: pointer;
 }
-.me-menu button:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.me-menu button:hover { background: var(--soft); }
+
 .engage-empty { padding: 18px 0 4px; color: var(--mute); }
 .comments { list-style: none; }
-.comment { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 14px; padding: 18px 0; box-shadow: inset 0 -1px 0 var(--line); }
+.comment { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 0 14px; padding: 18px 0; box-shadow: inset 0 -1px 0 var(--line); }
 .avatar {
-  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
-  background: hsl(var(--h, 30) 45% 88%); color: hsl(var(--h, 30) 40% 28%);
-  font-size: 12.5px; font-weight: 600; letter-spacing: 0.03em; user-select: none;
+  display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
+  background: hsl(var(--h, 30) 45% 89%); color: hsl(var(--h, 30) 38% 30%);
+  font-size: 12px; font-weight: 600; letter-spacing: 0.04em; line-height: 1; user-select: none;
 }
 :root[data-theme="night"] .avatar { background: hsl(var(--h, 30) 25% 24%); color: hsl(var(--h, 30) 45% 82%); }
-.comment-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 13px; color: var(--mute); }
+.comment-head { display: flex; align-items: center; gap: 10px; min-height: 32px; font-size: 13px; line-height: 1; color: var(--mute); }
 .comment-head b { font-size: 14.5px; font-weight: 600; color: var(--ink); }
-.comment-body { margin-top: 4px; font-size: 15.5px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.comment-body { margin-top: 2px; font-size: 15.5px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .comment-del {
-  display: inline-grid; place-items: center; width: 28px; height: 28px; margin: -6px 0; padding: 0; border: 0; border-radius: 50%;
-  background: none; color: var(--mute); cursor: pointer; transition: color 0.2s ease, background-color 0.2s ease;
+  display: grid; place-items: center; width: 28px; height: 28px; margin: -4px -6px -4px auto; padding: 0; border: 0; border-radius: 7px;
+  background: none; color: var(--mute); opacity: 0.7; cursor: pointer; transition: color 0.2s ease, background-color 0.2s ease, opacity 0.2s ease;
 }
-.comment-del:hover { color: var(--accent); background: var(--soft); }
+.comment-del svg { display: block; }
+.comment-del:hover, .comment-del:focus-visible { color: var(--accent); background: var(--soft); opacity: 1; }
 .engage-notice { margin-top: 18px; font-size: 14px; color: var(--accent); }
-.comment-form { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 14px; margin-top: 24px; }
-.comment-form textarea {
-  width: 100%; min-height: 88px; padding: 12px 14px; border: 0; border-radius: 10px; resize: vertical;
-  background: var(--soft); color: var(--ink); font: inherit; font-size: 15px; line-height: 1.55;
-  box-shadow: inset 0 0 0 1px var(--line2); transition: box-shadow 0.2s ease, background-color 0.9s ease;
+
+.comment-form { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 14px; margin-top: 24px; }
+.composer {
+  border-radius: 12px; background: color-mix(in srgb, var(--paper) 55%, #fff);
+  box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow 0.2s ease, background-color 0.9s ease;
 }
-.comment-form textarea:focus { outline: none; box-shadow: inset 0 0 0 1.5px var(--ink); }
-.comment-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 10px; font-size: 13px; color: var(--mute); }
+:root[data-theme="night"] .composer { background: rgba(255, 255, 255, 0.03); }
+.composer:focus-within { box-shadow: inset 0 0 0 1px var(--line2), 0 0 0 3px var(--soft); }
+.composer textarea {
+  display: block; width: 100%; min-height: 76px; padding: 12px 14px 4px; border: 0; border-radius: 12px 12px 0 0; resize: none;
+  background: none; color: var(--ink); font: inherit; font-size: 15px; line-height: 1.55;
+}
+.composer textarea:focus { outline: none; }
+.composer textarea::placeholder { color: var(--mute); opacity: 0.8; }
+.composer-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 8px 8px 14px; font-size: 12.5px; color: var(--mute); }
 .post-btn {
-  min-height: 38px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--ink); color: var(--paper);
-  font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; transition: opacity 0.2s ease, background-color 0.9s ease, color 0.9s ease;
+  height: 30px; padding: 0 13px; border: 0; border-radius: 8px; background: var(--ink); color: var(--paper);
+  font: inherit; font-size: 13.5px; font-weight: 500; line-height: 1; cursor: pointer; transition: opacity 0.2s ease, background-color 0.9s ease, color 0.9s ease;
 }
-.post-btn:disabled { opacity: 0.45; cursor: default; }
-.signin { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 28px; font-size: 14px; color: var(--mute); }
+.post-btn:disabled { opacity: 0.3; cursor: default; }
+
+.signin {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 20px; margin-top: 24px; padding: 16px 18px;
+  border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line);
+}
+.signin p { flex: 1 1 260px; display: grid; gap: 3px; font-size: 13.5px; line-height: 1.45; color: var(--mute); }
+.signin b { font-size: 15px; font-weight: 600; color: var(--ink); }
 .gbtn {
-  display: inline-flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 16px 0 12px; border-radius: 999px;
-  background: #fff; color: #1f1f1f; font-size: 14px; font-weight: 500; box-shadow: inset 0 0 0 1px #747775;
+  display: inline-flex; flex: none; align-items: center; gap: 10px; height: 38px; padding: 0 16px 0 12px; border-radius: 999px;
+  background: #fff; color: #1f1f1f; font-size: 14px; font-weight: 500; line-height: 1; box-shadow: inset 0 0 0 1px #dadce0; transition: background-color 0.2s ease;
 }
+.gbtn svg { display: block; }
 .gbtn:hover { opacity: 1; background: #f8f9fa; }
 .gbtn[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
 :root[data-theme="night"] .gbtn { background: #131314; color: #e3e3e3; box-shadow: inset 0 0 0 1px #8e918f; }
+:root[data-theme="night"] .gbtn:hover { background: #1f1f20; }
 
 /* ---------- motion ---------- */
 
