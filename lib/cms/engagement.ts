@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import { getDb } from "../db/mongo";
+import type { Hit } from "./traffic";
 import { CmsError } from "./validate";
 
 /**
@@ -26,7 +27,25 @@ export interface PublicComment {
 const BOT = /bot|crawl|spider|slurp|preview|headless|lighthouse|facebookexternalhit|embedly|whatsapp|discord|curl|wget|python-requests/i;
 export const isBot = (ua: string | null) => !ua || BOT.test(ua);
 
-const today = () => new Date().toISOString().slice(0, 10);
+function zone(): string {
+  const tz = process.env.ANALYTICS_TZ || "Asia/Kathmandu";
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz });
+    return tz;
+  } catch {
+    return "Asia/Kathmandu";
+  }
+}
+
+/** Analytics days (site_stats, site_dims) are cut in this timezone. Older docs are keyed in UTC. */
+export const ANALYTICS_TZ = zone();
+const dayFormat = new Intl.DateTimeFormat("en-CA", { timeZone: ANALYTICS_TZ, year: "numeric", month: "2-digit", day: "2-digit" });
+
+/** YYYY-MM-DD in ANALYTICS_TZ. */
+export const dayKey = (at = new Date()) => dayFormat.format(at);
+export const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+
+const today = () => dayKey();
 const db = getDb;
 
 // ---------- readers (Google accounts) ----------
@@ -49,17 +68,34 @@ export async function getReader(id: string): Promise<Reader | null> {
 
 // ---------- visits ----------
 
-/** One page view. A visitor counts once per day towards "visitors". */
-export async function trackVisit(vid: string): Promise<void> {
+/** One page view. A visitor counts once per day towards "visitors"; the referrer only on entry views. */
+export async function trackVisit(vid: string, hit: Hit): Promise<void> {
   const d = await db();
   const day = today();
-  const before = await d
-    .collection<{ _id: string; lastDay?: string }>("visitors")
-    .findOneAndUpdate(
-      { _id: vid },
-      { $set: { lastDay: day, lastSeen: new Date() }, $inc: { views: 1 }, $setOnInsert: { firstSeen: new Date() } },
-      { upsert: true, returnDocument: "before", projection: { lastDay: 1 } },
-    );
+  const dims: [string, string | null][] = [
+    ["page", hit.path],
+    ["referrer", hit.referrer],
+    ["country", hit.country],
+    ["device", hit.device],
+    ["browser", hit.browser],
+  ];
+  const [before] = await Promise.all([
+    d
+      .collection<{ _id: string; lastDay?: string }>("visitors")
+      .findOneAndUpdate(
+        { _id: vid },
+        { $set: { lastDay: day, lastSeen: new Date() }, $inc: { views: 1 }, $setOnInsert: { firstSeen: new Date() } },
+        { upsert: true, returnDocument: "before", projection: { lastDay: 1 } },
+      ),
+    d.collection<{ _id: string }>("site_dims").bulkWrite(
+      dims
+        .filter((x): x is [string, string] => x[1] !== null)
+        .map(([dim, key]) => ({
+          updateOne: { filter: { _id: `${day}|${dim}|${key}` }, update: { $inc: { views: 1 }, $setOnInsert: { day, dim, key } }, upsert: true },
+        })),
+      { ordered: false },
+    ),
+  ]);
   await d
     .collection<{ _id: string }>("site_stats")
     .updateOne({ _id: day }, { $inc: { views: 1, visitors: before?.lastDay === day ? 0 : 1 } }, { upsert: true });
@@ -73,7 +109,10 @@ export async function recordRead(slug: string, vid: string): Promise<number> {
     .updateOne({ _id: `${slug}:${vid}` }, { $setOnInsert: { slug, at: new Date() } }, { upsert: true });
   const stats = d.collection<{ _id: string; reads?: number }>("post_stats");
   if (first.upsertedCount) {
-    const doc = await stats.findOneAndUpdate({ _id: slug }, { $inc: { reads: 1 } }, { upsert: true, returnDocument: "after" });
+    const [doc] = await Promise.all([
+      stats.findOneAndUpdate({ _id: slug }, { $inc: { reads: 1 } }, { upsert: true, returnDocument: "after" }),
+      d.collection<{ _id: string }>("site_stats").updateOne({ _id: today() }, { $inc: { reads: 1 } }, { upsert: true }),
+    ]);
     return doc?.reads ?? 1;
   }
   return (await stats.findOne({ _id: slug }))?.reads ?? 0;
@@ -150,7 +189,8 @@ export async function getEngagement(slug: string, readerId: string | null) {
 
 export async function siteStats() {
   const d = await db();
-  const since = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+  const t = today();
+  const since = (n: number) => addDays(t, -n);
   const [visitors, days, comments, readers, likes, top] = await Promise.all([
     d.collection("visitors").estimatedDocumentCount(),
     d.collection<{ _id: string; views?: number; visitors?: number }>("site_stats").find({ _id: { $gte: since(29) } }).toArray(),
@@ -159,7 +199,6 @@ export async function siteStats() {
     d.collection("likes").estimatedDocumentCount(),
     d.collection<{ _id: string; reads?: number }>("post_stats").find({}).sort({ reads: -1 }).limit(5).toArray(),
   ]);
-  const t = today();
   const sum = (key: "views" | "visitors", from: string) => days.filter((x) => x._id >= from).reduce((n, x) => n + (x[key] ?? 0), 0);
   return {
     visitors,

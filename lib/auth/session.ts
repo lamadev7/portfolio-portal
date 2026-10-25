@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { OWNER_COOKIE, ownerCookie } from "./owner";
 
 /**
  * Admin session: an HMAC-signed, httpOnly cookie scoped to /admin, valid for 7 days.
@@ -27,6 +28,7 @@ export function createSession(email: string): void {
     path: "/admin",
     maxAge: MAX_AGE,
   });
+  cookies().set(OWNER_COOKIE, "1", ownerCookie);
 }
 
 export function readSession(): { email: string } | null {
