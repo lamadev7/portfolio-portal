@@ -52,6 +52,11 @@ export interface AnalyticsData {
     /** "Chrome" | "Safari" | "Firefox" | "Edge" | "Other". */
     browsers: Ranked[];
   };
+  /**
+   * Views per breakdown summed over every key, not just the top 8: the denominator for share %.
+   * Differs from totals.views (referrers count entry views only; views before breakdowns existed have none).
+   */
+  shareOf: { pages: number; referrers: number; countries: number; devices: number; browsers: number };
   /** Posts by reads over all time, with engagement. */
   posts: { slug: string; title: string; reads: number; likes: number; comments: number }[];
 }

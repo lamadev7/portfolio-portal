@@ -72,7 +72,7 @@ export default async function Dashboard({ searchParams }: { searchParams: { rang
         <div className="breakdown">
           <BarList
             title="Top pages"
-            total={t.views}
+            total={a.shareOf.pages}
             className="wide"
             items={a.top.pages.map((r) => ({
               ...r,
@@ -85,10 +85,10 @@ export default async function Dashboard({ searchParams }: { searchParams: { rang
               ),
             }))}
           />
-          <BarList title="Referrers" total={t.views} className="wide" items={plain(a.top.referrers)} />
+          <BarList title="Referrers" total={a.shareOf.referrers} className="wide" items={plain(a.top.referrers)} />
           <BarList
             title="Countries"
-            total={t.views}
+            total={a.shareOf.countries}
             items={a.top.countries.map((r) => {
               const c = country(r.key);
               return {
@@ -104,8 +104,8 @@ export default async function Dashboard({ searchParams }: { searchParams: { rang
               };
             })}
           />
-          <BarList title="Devices" total={t.views} items={plain(a.top.devices)} />
-          <BarList title="Browsers" total={t.views} items={plain(a.top.browsers)} />
+          <BarList title="Devices" total={a.shareOf.devices} items={plain(a.top.devices)} />
+          <BarList title="Browsers" total={a.shareOf.browsers} items={plain(a.top.browsers)} />
         </div>
 
         <TopPosts posts={a.posts} />

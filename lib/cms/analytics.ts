@@ -71,6 +71,7 @@ export async function getAnalytics(range: Range): Promise<AnalyticsData> {
 
   const top = Object.fromEntries(Object.values(DIMS).map((k) => [k, [] as Ranked[]])) as AnalyticsData["top"];
   for (const x of dims) if (x._id.dim in DIMS) top[DIMS[x._id.dim as keyof typeof DIMS]].push({ key: x._id.key, views: x.views });
+  const shareOf = Object.fromEntries(Object.entries(top).map(([k, list]) => [k, list.reduce((n, r) => n + r.views, 0)])) as AnalyticsData["shareOf"];
   for (const list of Object.values(top)) {
     list.sort((a, b) => b.views - a.views || a.key.localeCompare(b.key));
     list.splice(8);
@@ -85,6 +86,7 @@ export async function getAnalytics(range: Range): Promise<AnalyticsData> {
     allTime: { visitors, readers, likes: likesAll, comments: commentsAll },
     online,
     top,
+    shareOf,
     posts: posts
       .map((p) => ({ slug: p.slug, title: p.title, ...(counts[p.slug] ?? { reads: 0, likes: 0, comments: 0 }) }))
       .sort((a, b) => b.reads - a.reads || a.title.localeCompare(b.title)),
