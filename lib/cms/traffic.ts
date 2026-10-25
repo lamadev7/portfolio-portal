@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { OWNER_COOKIE } from "../auth/owner";
+import { listPosts, listProjects } from "./repo";
 
 /** Which page views count, and how each one is bucketed for the analytics breakdowns. */
 
@@ -60,4 +61,19 @@ export function readHit(req: NextRequest, body: unknown): Hit | null {
     device: device(ua),
     browser: BROWSERS.find(([, re]) => re.test(ua))?.[0] ?? "Other",
   };
+}
+
+// published slugs, refreshed every few minutes, so made-up paths can't fill the top-pages list
+let slugs: { at: number; blog: Set<string>; work: Set<string> } | null = null;
+
+/** True for "/", "/blog", "/work" and published posts and projects: the only pages the tracker runs on. */
+export async function countablePath(path: string): Promise<boolean> {
+  if (path === "/" || path === "/blog" || path === "/work") return true;
+  const m = /^\/(blog|work)\/([a-z0-9-]{1,80})$/.exec(path);
+  if (!m) return false;
+  if (!slugs || Date.now() - slugs.at > 5 * 60_000) {
+    const [posts, projects] = await Promise.all([listPosts(), listProjects()]);
+    slugs = { at: Date.now(), blog: new Set(posts.map((p) => p.slug)), work: new Set(projects.map((p) => p.slug)) };
+  }
+  return slugs[m[1] as "blog" | "work"].has(m[2]);
 }
