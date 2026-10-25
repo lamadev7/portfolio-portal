@@ -12,7 +12,7 @@ importers:
         specifier: 5.24.0
         version: 5.24.0
       mongodb:
-        specifier: ^6.21.0
+        specifier: 6.21.0
         version: 6.21.0
       next:
         specifier: 14.2.15
@@ -55,7 +55,7 @@ importers:
         specifier: 14.2.15
         version: 14.2.15(eslint@8.57.0)(typescript@5.5.3)
       tsx:
-        specifier: ^4.23.15
+        specifier: 4.23.15
         version: 4.23.15
       typescript:
         specifier: 5.5.3
