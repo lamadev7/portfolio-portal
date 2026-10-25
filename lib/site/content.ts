@@ -16,7 +16,14 @@ export const TIERS: Tier[] = ["production", "projects", "learning"];
 
 export interface ExperienceItem {
   id: string;
+  /** Shown on the site. Generated from start/end when they're set. */
   when: string;
+  /** YYYY-MM-DD; "" for roles saved before the date picker. */
+  start?: string;
+  /** YYYY-MM-DD, or "" while the role is current. */
+  end?: string;
+  /** start → end (or the save date, for a current role). */
+  totalExperience?: { years: number; months: number; days: number } | null;
   title: string;
   meta: string;
   bullets: string[];

@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { deleteProjectAction, saveProjectAction } from "@/app/admin/actions";
+import { parseLabel, rangeLabel } from "@/lib/cms/dates";
 import type { ProjectInput } from "@/lib/cms/types";
 import type { SceneOption } from "@/lib/cms/scenes";
 import { slugify } from "@/lib/cms/validate";
+import { DateRangePicker, type RangeValue } from "./DatePicker";
 import { Area, ArtPicker, Field, MarkdownEditor, PairsEditor, SaveBar, Section, Select, Text, Toggle, useSaver } from "./fields";
 
 export default function ProjectForm({ id, initial, scenes }: { id: string | null; initial: ProjectInput; scenes: SceneOption[] }) {
@@ -20,7 +22,25 @@ export default function ProjectForm({ id, initial, scenes }: { id: string | null
     (v: ProjectInput[K]) =>
       setD((prev) => ({ ...prev, [k]: v }));
 
-  const payload = () => ({ ...d, stack: stackText.split(",").map((s) => s.trim()).filter(Boolean) });
+  // projects saved before the date picker only have a text label: a date-like one becomes dates, anything else ("Next milestone") a custom label
+  const [dates, setDates] = useState<RangeValue>(() => {
+    const old = initial.start ? null : parseLabel(initial.when);
+    const start = initial.start || old?.start || "";
+    const end = initial.start ? (initial.end ?? "") : (old?.end ?? "");
+    return { start, end, present: Boolean(start) && !end };
+  });
+  const [customLabel, setCustomLabel] = useState(initial.customLabel ?? (initial.start || parseLabel(initial.when) ? "" : initial.when));
+  const shown = customLabel.trim() || (dates.start && (dates.present || dates.end) ? rangeLabel(dates.start, dates.present ? "" : dates.end, "year") : "");
+
+  const payload = () => ({
+    ...d,
+    when: "",
+    start: dates.start,
+    end: dates.present ? "" : dates.end,
+    present: dates.present,
+    customLabel,
+    stack: stackText.split(",").map((s) => s.trim()).filter(Boolean),
+  });
 
   function save() {
     run(() => saveProjectAction(id, payload()), id ? "Saved" : "Created", (res) => {
@@ -103,9 +123,6 @@ export default function ProjectForm({ id, initial, scenes }: { id: string | null
           <Field label="Role">
             <Text value={d.role} onChange={set("role")} />
           </Field>
-          <Field label="Year">
-            <Text value={d.year} onChange={set("year")} />
-          </Field>
         </Section>
 
         <Section title="Write-up" desc="The body of the project page.">
@@ -127,8 +144,11 @@ export default function ProjectForm({ id, initial, scenes }: { id: string | null
               ]}
             />
           </Field>
-          <Field label="Date label" hint='Top right of the card, e.g. "2025" or "2022 – now"' wide>
-            <Text value={d.when} onChange={set("when")} />
+          <Field label="Dates" hint={shown ? `The card shows "${shown}"` : "Shown top right of the card."} wide group>
+            <DateRangePicker value={dates} onChange={setDates} presentLabel="Ongoing" />
+          </Field>
+          <Field label="Custom label" hint='Optional. Shown instead of the dates, e.g. "Next milestone".' wide>
+            <Text value={customLabel} onChange={setCustomLabel} maxLength={40} />
           </Field>
           <Field label="Order" hint="Lower comes first." wide>
             <Text type="number" step="0.1" value={d.order} onChange={(v) => set("order")(Number(v))} />

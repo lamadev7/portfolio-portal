@@ -1,4 +1,5 @@
 import { TIERS, type ExperienceItem, type SiteContent, type Tier } from "../site/content";
+import { isISODate, rangeLabel, span, todayISO } from "./dates";
 import type { Pair, PostInput, ProjectInput } from "./types";
 
 /** Server-side checks for everything the admin forms send. Messages are shown to the editor as-is. */
@@ -18,6 +19,22 @@ function text(v: unknown, label: string, max: number, required = false): string 
   if (required && !s) throw new CmsError(`${label} is required.`);
   if (s.length > max) throw new CmsError(`${label} must be ${max} characters or fewer.`);
   return s;
+}
+
+/**
+ * A start–end range from the date picker. `present` leaves the end open (""); stored rows carry no `present`,
+ * so there an empty end already means ongoing. No start means no dates.
+ */
+function range(r: Raw, label: string): { start: string; end: string } {
+  const start = typeof r.start === "string" ? r.start : "";
+  if (!start) return { start: "", end: "" };
+  if (!isISODate(start)) throw new CmsError(`${label}: the start must be a valid date.`);
+  const end = typeof r.end === "string" ? r.end : "";
+  if (r.present === true || (r.present === undefined && !end)) return { start, end: "" };
+  if (!end) throw new CmsError(`${label}: pick an end date, or mark it as ongoing.`);
+  if (!isISODate(end)) throw new CmsError(`${label}: the end must be a valid date.`);
+  if (end < start) throw new CmsError(`${label}: the end can't be before the start.`);
+  return { start, end };
 }
 
 function link(v: unknown, label: string, allowPath = false): string {
@@ -69,6 +86,8 @@ export function slugify(s: string): string {
 export function cleanProject(input: unknown): ProjectInput {
   const r = obj(input);
   const order = Number(r.order);
+  const { start, end } = range(r, "Dates");
+  const customLabel = text(r.customLabel, "Custom label", 40);
   return {
     slug: slug(r.slug),
     title: text(r.title, "Title", 120, true),
@@ -76,8 +95,11 @@ export function cleanProject(input: unknown): ProjectInput {
     summary: text(r.summary, "Summary", 600, true),
     kicker: text(r.kicker, "Kicker", 120),
     status: r.status === "todo" ? "todo" : "shipped",
-    when: text(r.when, "When", 40),
-    year: text(r.year, "Year", 20),
+    when: customLabel || (start ? rangeLabel(start, end, "year") : text(r.when, "When", 40)),
+    start,
+    end,
+    customLabel,
+    year: start ? start.slice(0, 4) : text(r.year, "Year", 20),
     role: text(r.role, "Role", 120),
     order: Number.isFinite(order) ? order : 99,
     featured: r.featured === true,
@@ -127,9 +149,13 @@ export function newRoleId(): string {
 export function cleanRole(input: unknown, label = "Role"): ExperienceItem {
   const e = obj(input);
   const id = typeof e.id === "string" && ROLE_ID.test(e.id) ? e.id : newRoleId();
+  const { start, end } = range(e, `${label} dates`);
   return {
     id,
-    when: text(e.when, `${label} dates`, 40),
+    when: start ? rangeLabel(start, end, "month") : text(e.when, `${label} dates`, 40),
+    start,
+    end,
+    totalExperience: start ? span(start, end || todayISO()) : null,
     title: text(e.title, `${label} title`, 140, true),
     meta: text(e.meta, `${label} details`, 200),
     bullets: (typeof e.bullets === "string" ? e.bullets.split("\n") : arr(e.bullets))

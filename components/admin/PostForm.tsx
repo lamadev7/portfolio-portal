@@ -7,6 +7,7 @@ import { deletePostAction, savePostAction } from "@/app/admin/actions";
 import type { PostInput } from "@/lib/cms/types";
 import type { SceneOption } from "@/lib/cms/scenes";
 import { slugify } from "@/lib/cms/validate";
+import { DatePicker } from "./DatePicker";
 import { Area, ArtPicker, Field, MarkdownEditor, SaveBar, Section, Text, Toggle, useSaver } from "./fields";
 
 export default function PostForm({ id, initial, scenes }: { id: string | null; initial: PostInput; scenes: SceneOption[] }) {
@@ -73,8 +74,8 @@ export default function PostForm({ id, initial, scenes }: { id: string | null; i
               }}
             />
           </Field>
-          <Field label="Date" wide>
-            <Text type="date" value={d.date} onChange={set("date")} required />
+          <Field label="Date" wide group>
+            <DatePicker value={d.date} onChange={set("date")} />
           </Field>
           <Field label="Tags" hint="Comma-separated." wide>
             <Text value={tagsText} onChange={setTagsText} placeholder="agents, architecture" />

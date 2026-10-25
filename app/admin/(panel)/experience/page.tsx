@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Experience" };
 
 export default async function ExperienceAdmin() {
   requireAdmin();
-  const rows = (await listRoles()).map(({ id, title, when, meta }) => ({ id, title, when, meta }));
+  const rows = (await listRoles()).map(({ id, title, when, start, end, meta }) => ({ id, title, when, start, end, meta }));
   return (
     <>
       <header className="page-top">

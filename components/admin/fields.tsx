@@ -20,7 +20,16 @@ export function Section({ title, desc, children }: { title: string; desc?: strin
   );
 }
 
-export function Field({ label, hint, wide, children }: { label: string; hint?: string; wide?: boolean; children: ReactNode }) {
+export function Field({ label, hint, wide, group, children }: { label: string; hint?: string; wide?: boolean; group?: boolean; children: ReactNode }) {
+  // a picker with its own buttons can't sit inside a <label>: clicks on it would re-trigger the first button
+  if (group)
+    return (
+      <div role="group" aria-label={label} className={wide ? "field field-wide" : "field"}>
+        <span className="field-l">{label}</span>
+        {children}
+        {hint && <span className="field-h">{hint}</span>}
+      </div>
+    );
   return (
     <label className={wide ? "field field-wide" : "field"}>
       <span className="field-l">{label}</span>

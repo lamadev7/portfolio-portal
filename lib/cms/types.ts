@@ -14,7 +14,13 @@ export interface ProjectInput {
   summary: string;
   kicker: string;
   status: ProjectStatus;
+  /** Card label: customLabel, else generated from start/end. */
   when: string;
+  /** YYYY-MM-DD; end is "" while ongoing. Both "" when the project has no dates. */
+  start?: string;
+  end?: string;
+  /** Shown instead of the dates, e.g. "Next milestone". */
+  customLabel?: string;
   year: string;
   role: string;
   order: number;

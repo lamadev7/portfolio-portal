@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { formatSpan, parseLabel, span, todayISO } from "@/lib/cms/dates";
 import { deleteRoleAction, reorderRolesAction } from "@/app/admin/actions";
 import { RowTools } from "./ProjectsTable";
 import { useSortableRows } from "./useSortableRows";
@@ -9,6 +10,8 @@ export interface RoleRow {
   id: string;
   title: string;
   when: string;
+  start?: string;
+  end?: string;
   meta: string;
 }
 
@@ -48,7 +51,13 @@ export default function ExperienceTable({ initial }: { initial: RoleRow[] }) {
                 </Link>
                 {r.meta && <span className="row-sub">{r.meta}</span>}
               </td>
-              <td>{r.when}</td>
+              <td>
+                {r.when}
+                {(() => {
+                  const d = r.start ? { start: r.start, end: r.end ?? "" } : parseLabel(r.when);
+                  return d && <span className="row-sub">{formatSpan(span(d.start, d.end || todayISO()))}</span>;
+                })()}
+              </td>
               <td className="col-actions">
                 <RowTools
                   title={r.title}
