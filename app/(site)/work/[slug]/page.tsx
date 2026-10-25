@@ -7,14 +7,14 @@ import { sceneArt } from "@/lib/content/art";
 
 type Params = { params: { slug: string } };
 
-export const dynamicParams = false;
+export const revalidate = 3600;
 
-export function generateStaticParams() {
-  return getProjects().map((p) => ({ slug: p.slug }));
+export async function generateStaticParams() {
+  return (await getProjects()).map((p) => ({ slug: p.slug }));
 }
 
-export function generateMetadata({ params }: Params): Metadata {
-  const p = getProject(params.slug);
+export async function generateMetadata({ params }: Params): Promise<Metadata> {
+  const p = await getProject(params.slug);
   if (!p) return {};
   return {
     title: p.title,
@@ -26,8 +26,8 @@ export function generateMetadata({ params }: Params): Metadata {
 
 const bare = (href: string) => href.replace(/^https?:\/\/(www\.)?/, "");
 
-export default function ProjectPage({ params }: Params) {
-  const all = getProjects();
+export default async function ProjectPage({ params }: Params) {
+  const all = await getProjects();
   const i = all.findIndex((p) => p.slug === params.slug);
   if (i < 0) notFound();
   const p = all[i];

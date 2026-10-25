@@ -2,6 +2,7 @@ import Header from "@/components/site/Header";
 import Footer from "@/components/site/Footer";
 import Reveal from "@/components/site/Reveal";
 import ThemeDots from "@/components/site/ThemeDots";
+import Track from "@/components/site/Track";
 import "./site.css";
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
@@ -13,6 +14,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       <Footer />
       <ThemeDots variant="rail" />
       <Reveal />
+      <Track />
     </div>
   );
 }

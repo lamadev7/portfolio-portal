@@ -1,7 +1,19 @@
 import Link from "next/link";
-import { contact, site } from "@/lib/site/content";
+import { getSiteContent } from "@/lib/content";
+import { totalVisitors } from "@/lib/cms/engagement";
+import { hasDatabase } from "@/lib/db/mongo";
 
-export default function Footer() {
+async function visitorCount(): Promise<number | null> {
+  if (!hasDatabase()) return null;
+  try {
+    return await totalVisitors();
+  } catch {
+    return null;
+  }
+}
+
+export default async function Footer() {
+  const [{ contact, site }, visitors] = await Promise.all([getSiteContent(), visitorCount()]);
   return (
     <footer id="contact" className="site-foot col" data-reveal>
       <h2>{contact.heading}</h2>
@@ -24,6 +36,7 @@ export default function Footer() {
       </p>
       <p className="fine">
         © {new Date().getFullYear()} {site.name} · {site.location}
+        {visitors ? ` · ${visitors.toLocaleString("en")} visitors` : ""}
       </p>
     </footer>
   );

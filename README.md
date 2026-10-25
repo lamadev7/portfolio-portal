@@ -35,9 +35,35 @@ Deploys cleanly on Vercel (zero config), Netlify, Cloudflare Pages, or any Node 
 - `components/site/`: header, theme dots, footer, scroll reveal, article art.
 - `lib/site/content.ts`: home-page copy (about, domains, agents, modules). Experience, education and stack come from `lib/data/`.
 
-### Adding a project or a post
+### Content and the admin panel (CMS)
 
-Add one Markdown file to `content/projects/` or `content/posts/`. The file name is the URL slug. Copy the `_template.md` in each folder; files starting with `_` are ignored, and so is anything marked `draft: true`. `featured: true` puts a project on the home page, and `art: s01`–`s24` picks its painting.
+Projects, blog posts and all home-page copy live in MongoDB and are edited at **/admin**.
+
+1. Copy `.env.example` to `.env` and set `MONGODB_URI`, `MONGODB_DB` and `SESSION_SECRET` (`openssl rand -base64 48`). `.env` is git-ignored.
+2. `pnpm seed` copies the Markdown in `content/` and the default site copy into the database. It only inserts what's missing, so it never overwrites edits made in the admin; `pnpm seed --force` overwrites from the files.
+3. `pnpm admin:password you@example.com` creates the admin login (or resets its password) and prints a generated password once. Change it later at /admin/account.
+
+The admin has:
+- **Projects:** every card field (status shipped/TODO, results, features, stack, links, painting, order, featured, draft) and a Markdown write-up with preview.
+- **Blog posts:** title, slug, date, tags, painting, draft and a Markdown body with preview.
+- **Site content:** hero, rolling lines, facts, links, core stack, experience, agent principles, skills with levels, upcoming post and footer.
+- **Account:** change password.
+
+Saving refreshes the affected public pages straight away. Sessions are signed, httpOnly cookies scoped to /admin and last 7 days; rotating `SESSION_SECRET` signs everyone out. If `MONGODB_URI` is unset or the database is unreachable, the public site falls back to the Markdown files in `content/`.
+
+### Visitors, reads, likes and comments
+
+- **Visitors and views:** every page view is counted, and each visitor counts once a day, using an anonymous `pl_vid` cookie. No IP addresses are stored and bots are ignored. The total shows in the footer, and the details are on the admin dashboard.
+- **Reads:** each blog post counts one read per visitor. The count shows in the post's meta line and in the admin posts list.
+- **Likes and comments:** both need "Sign in with Google". Readers can delete their own comments. You can delete any comment at /admin/comments. Comments are plain text, capped at 2,000 characters and 5 per reader per 10 minutes.
+
+To turn on Google sign-in:
+
+1. In the [Google Cloud console](https://console.cloud.google.com/apis/credentials), create an **OAuth client ID** of type **Web application**.
+2. Add the authorised redirect URIs `http://localhost:3100/api/auth/google/callback` (local) and `https://<your-domain>/api/auth/google/callback` (production).
+3. Put `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `SITE_URL` in `.env`, and in your host's environment variables, then restart.
+
+Until those are set, the post page shows the sign-in button disabled, with a note that comments open once sign-in is set up.
 
 ## Earlier experiments
 

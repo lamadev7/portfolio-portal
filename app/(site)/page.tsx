@@ -2,19 +2,20 @@ import Link from "next/link";
 import MeadowHero from "@/components/meadow/MeadowHero";
 import ProjectCard from "@/components/site/ProjectCard";
 import Reel from "@/components/site/Reel";
-import { coreStack, experience, nextPost, principles, site, skills, tierLabel, type Tier } from "@/lib/site/content";
-import { fmtDate, getPosts, getProjects } from "@/lib/content";
+import { TIERS, tierLabel } from "@/lib/site/content";
+import { fmtDate, getPosts, getProjects, getSiteContent } from "@/lib/content";
 
-const TIERS: Tier[] = ["production", "projects", "learning"];
+export const revalidate = 3600;
 
-export default function Home() {
-  const projects = getProjects();
+export default async function Home() {
+  const [projects, allPosts, content] = await Promise.all([getProjects(), getPosts(), getSiteContent()]);
+  const { site, coreStack, experience, principles, skills, nextPost } = content;
   const featured = [
     ...projects.filter((p) => p.status === "shipped" && p.featured).slice(0, 4),
     ...projects.filter((p) => p.status === "todo"),
   ];
   const also = projects.filter((p) => p.also);
-  const posts = getPosts().slice(0, 3);
+  const posts = allPosts.slice(0, 3);
 
   return (
     <>
@@ -96,7 +97,7 @@ export default function Home() {
           </h2>
           <div className="dated">
             {experience.map((e) => (
-              <div className="dated-row" key={e.title} data-reveal>
+              <div className="dated-row" key={e.id} data-reveal>
                 <p className="dated-when">{e.when}</p>
                 <div className="dated-body">
                   <h3>{e.title}</h3>
@@ -145,7 +146,7 @@ export default function Home() {
             <div className="skill-row" key={g.label} data-reveal>
               <p className="skill-k">{g.label}</p>
               <ul>
-                {g.items.map(([name, tier]) => (
+                {g.items.map(({ name, tier }) => (
                   <li key={name}>
                     <i className={`tier tier-${tier}`} aria-hidden="true" />
                     {name}

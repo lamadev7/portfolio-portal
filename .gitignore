@@ -2,3 +2,9 @@
 node_modules
 # local build artefacts
 tsconfig.tsbuildinfo
+
+# secrets
+.env
+.env*.local
+.env.*
+!.env.example

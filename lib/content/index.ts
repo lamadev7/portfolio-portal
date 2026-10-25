@@ -1,20 +1,18 @@
-import fs from "node:fs";
-import path from "node:path";
-import { parseFrontMatter, readingMinutes, renderMarkdown, type FrontMatter } from "./markdown";
+import { cache } from "react";
+import { hasDatabase } from "../db/mongo";
+import { getSiteSettings, listPosts, listProjects } from "../cms/repo";
+import type { Pair, PostInput, ProjectInput, ProjectStatus } from "../cms/types";
+import { defaultSiteContent, type SiteContent } from "../site/content";
+import { readPostFiles, readProjectFiles } from "./files";
+import { readingMinutes, renderMarkdown } from "./markdown";
 
 /**
- * Content lives in content/projects/*.md and content/posts/*.md.
- * Adding a project or a post is adding one file: the slug is the file name.
+ * What the public pages read. Content comes from MongoDB (edited at /admin); when MONGODB_URI is unset,
+ * or the database can't be reached, it falls back to the Markdown files in content/.
  */
 
-const ROOT = path.join(process.cwd(), "content");
-
-export interface Metric {
-  v: string;
-  k: string;
-}
-
-export type ProjectStatus = "shipped" | "todo";
+export type Metric = Pair;
+export type { ProjectStatus };
 
 export interface Project {
   slug: string;
@@ -45,6 +43,7 @@ export interface Project {
 
 export interface Post {
   slug: string;
+  order: number;
   title: string;
   summary: string;
   date: Date;
@@ -55,88 +54,89 @@ export interface Post {
   html: string;
 }
 
-function readDir(dir: string): { slug: string; data: FrontMatter; body: string }[] {
-  const full = path.join(ROOT, dir);
-  if (!fs.existsSync(full)) return [];
-  return fs
-    .readdirSync(full)
-    .filter((f) => f.endsWith(".md") && !f.startsWith("_"))
-    .map((f) => {
-      const { data, body } = parseFrontMatter(fs.readFileSync(path.join(full, f), "utf8"));
-      return { slug: f.replace(/\.md$/, ""), data, body };
-    })
-    .filter((e) => e.data.draft !== true);
+const opt = (s: string) => s || undefined;
+
+function toProject(p: ProjectInput): Project {
+  return {
+    slug: p.slug,
+    title: p.title,
+    tagline: p.tagline,
+    summary: p.summary || p.tagline,
+    kicker: p.kicker,
+    year: p.year,
+    when: p.when || p.year,
+    role: p.role,
+    order: p.order,
+    featured: p.featured,
+    status: p.status,
+    also: p.also,
+    alsoNote: opt(p.alsoNote),
+    metrics: p.metrics,
+    features: p.features,
+    cardStack: p.cardStack || p.stack.join(" · "),
+    cta: p.cta,
+    stack: p.stack,
+    highlight: opt(p.highlight),
+    repo: opt(p.repo),
+    live: opt(p.live),
+    art: opt(p.art),
+    artAlt: opt(p.artAlt),
+    html: renderMarkdown(p.body),
+  };
 }
 
-const str = (v: FrontMatter[string] | undefined) => (v === undefined ? undefined : String(v));
-const list = (v: FrontMatter[string] | undefined) => (Array.isArray(v) ? v : v ? [String(v)] : []);
-
-// metric (m1–m3) and feature (f1–f8) fields are written "title | text", e.g. `m1: ~90% | lower input cost`
-function pairs(data: FrontMatter, keys: string[]): Metric[] {
-  return keys.flatMap((key) => {
-    const raw = str(data[key]);
-    if (!raw) return [];
-    const [v, ...k] = raw.split("|");
-    return [{ v: v.trim(), k: k.join("|").trim() }];
-  });
+function toPost(p: PostInput): Post {
+  return {
+    slug: p.slug,
+    order: p.order ?? 0,
+    title: p.title,
+    summary: p.summary,
+    date: new Date(`${p.date}T00:00:00Z`),
+    minutes: readingMinutes(p.body),
+    tags: p.tags,
+    art: opt(p.art),
+    artAlt: opt(p.artAlt),
+    html: renderMarkdown(p.body),
+  };
 }
 
-const STATUSES: ProjectStatus[] = ["shipped", "todo"];
-
-export function getProjects(): Project[] {
-  return readDir("projects")
-    .map(({ slug, data, body }) => ({
-      slug,
-      title: str(data.title) ?? slug,
-      tagline: str(data.tagline) ?? "",
-      summary: str(data.summary) ?? str(data.tagline) ?? "",
-      kicker: str(data.kicker) ?? "",
-      year: str(data.year) ?? "",
-      when: str(data.when) ?? str(data.year) ?? "",
-      role: str(data.role) ?? "",
-      order: typeof data.order === "number" ? data.order : 99,
-      featured: data.featured === true,
-      status: STATUSES.find((st) => st === data.status) ?? "shipped",
-      also: data.also === true,
-      alsoNote: str(data.alsoNote),
-      metrics: pairs(data, ["m1", "m2", "m3"]),
-      features: pairs(data, ["f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8"]),
-      cardStack: str(data.cardStack) ?? list(data.stack).join(" · "),
-      cta: data.cta === "code" ? ("code" as const) : ("case" as const),
-      stack: list(data.stack),
-      highlight: str(data.highlight),
-      repo: str(data.repo),
-      live: str(data.live),
-      art: str(data.art),
-      artAlt: str(data.artAlt),
-      html: renderMarkdown(body),
-    }))
-    .sort((a, b) => a.order - b.order);
+async function fromDb<T>(read: () => Promise<T>, fallback: () => T): Promise<T> {
+  if (!hasDatabase()) return fallback();
+  try {
+    return await read();
+  } catch (err) {
+    console.error("content: database unavailable, using content/ files", err);
+    return fallback();
+  }
 }
 
-export function getProject(slug: string): Project | undefined {
-  return getProjects().find((p) => p.slug === slug);
+export const getProjects = cache(async (): Promise<Project[]> => {
+  const raw = await fromDb(
+    () => listProjects(),
+    () => readProjectFiles().filter((p) => !p.draft).sort((a, b) => a.order - b.order),
+  );
+  return raw.map(toProject);
+});
+
+export async function getProject(slug: string): Promise<Project | undefined> {
+  return (await getProjects()).find((p) => p.slug === slug);
 }
 
-export function getPosts(): Post[] {
-  return readDir("posts")
-    .map(({ slug, data, body }) => ({
-      slug,
-      title: str(data.title) ?? slug,
-      summary: str(data.summary) ?? "",
-      date: new Date(`${str(data.date) ?? "1970-01-01"}T00:00:00Z`),
-      minutes: readingMinutes(body),
-      tags: list(data.tags),
-      art: str(data.art),
-      artAlt: str(data.artAlt),
-      html: renderMarkdown(body),
-    }))
-    .sort((a, b) => b.date.getTime() - a.date.getTime());
+export const getPosts = cache(async (): Promise<Post[]> => {
+  const raw = await fromDb(
+    () => listPosts(),
+    () => readPostFiles().filter((p) => !p.draft),
+  );
+  return raw.map(toPost).sort((a, b) => a.order - b.order || b.date.getTime() - a.date.getTime());
+});
+
+export async function getPost(slug: string): Promise<Post | undefined> {
+  return (await getPosts()).find((p) => p.slug === slug);
 }
 
-export function getPost(slug: string): Post | undefined {
-  return getPosts().find((p) => p.slug === slug);
-}
+export const getSiteContent = cache(
+  async (): Promise<SiteContent> => fromDb(() => getSiteSettings(), () => defaultSiteContent),
+);
 
 export function fmtDate(d: Date): string {
   return d.toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" });

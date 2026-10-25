@@ -2,19 +2,21 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Art from "@/components/site/Art";
+import Engagement from "@/components/site/Engagement";
+import PostReads from "@/components/site/PostReads";
 import { fmtDate, getPost, getPosts } from "@/lib/content";
 import { sceneArt } from "@/lib/content/art";
 
 type Params = { params: { slug: string } };
 
-export const dynamicParams = false;
+export const revalidate = 3600;
 
-export function generateStaticParams() {
-  return getPosts().map((p) => ({ slug: p.slug }));
+export async function generateStaticParams() {
+  return (await getPosts()).map((p) => ({ slug: p.slug }));
 }
 
-export function generateMetadata({ params }: Params): Metadata {
-  const p = getPost(params.slug);
+export async function generateMetadata({ params }: Params): Promise<Metadata> {
+  const p = await getPost(params.slug);
   if (!p) return {};
   return {
     title: p.title,
@@ -24,8 +26,8 @@ export function generateMetadata({ params }: Params): Metadata {
   };
 }
 
-export default function PostPage({ params }: Params) {
-  const all = getPosts();
+export default async function PostPage({ params }: Params) {
+  const all = await getPosts();
   const i = all.findIndex((p) => p.slug === params.slug);
   if (i < 0) notFound();
   const p = all[i];
@@ -44,6 +46,7 @@ export default function PostPage({ params }: Params) {
             <time dateTime={p.date.toISOString().slice(0, 10)}>{fmtDate(p.date)}</time>
           </span>
           <span>{p.minutes} min read</span>
+          <PostReads slug={p.slug} />
           {p.tags.length > 0 && <span>{p.tags.join(", ")}</span>}
         </p>
       </header>
@@ -51,6 +54,8 @@ export default function PostPage({ params }: Params) {
       <Art art={sceneArt(p.art, p.artAlt)} priority />
 
       <div className="prose" data-reveal dangerouslySetInnerHTML={{ __html: p.html }} />
+
+      <Engagement slug={p.slug} />
 
       {older && older.slug !== p.slug && (
         <Link href={`/blog/${older.slug}`} className="next-link">

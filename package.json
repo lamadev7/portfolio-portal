@@ -7,10 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed": "tsx --env-file=.env scripts/seed.ts",
+    "admin:password": "tsx --env-file=.env scripts/admin-password.ts"
   },
   "dependencies": {
     "maplibre-gl": "5.24.0",
+    "mongodb": "6.21.0",
     "next": "14.2.15",
     "react": "18.3.1",
     "react-dom": "18.3.1",
@@ -26,6 +29,7 @@
     "@types/topojson-client": "3.1.5",
     "eslint": "8.57.0",
     "eslint-config-next": "14.2.15",
+    "tsx": "4.23.15",
     "typescript": "5.5.3"
   }
 }

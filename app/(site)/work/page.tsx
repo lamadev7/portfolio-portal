@@ -8,8 +8,10 @@ export const metadata: Metadata = {
   alternates: { canonical: "/work" },
 };
 
-export default function WorkIndex() {
-  const projects = getProjects();
+export const revalidate = 3600;
+
+export default async function WorkIndex() {
+  const projects = await getProjects();
   const ordered = [...projects.filter((p) => p.status === "shipped"), ...projects.filter((p) => p.status === "todo")];
 
   return (
