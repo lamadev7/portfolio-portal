@@ -1,9 +1,11 @@
 // The meadow turntable: static painted field, orthographic camera orbiting at a grazing angle, one painted
-// vignette per detent. startMeadow() wires it to the component's DOM and returns a full teardown.
+// vignette per detent. The island turns on its own, a drag flings it, and the pointer parts the grass.
+// startMeadow() wires it to the component's DOM and returns a full teardown.
 import * as THREE from "three";
 import {
   PALETTES, THEME_MS, DETENTS, DETENT_STEP_DEG, CAMERA_ELEVATION_DEG, CAMERA_DISTANCE, VIEW_TARGET_Y,
-  TURN_RATE, DRAG_PX_PER_STEP, SHIFT_STEPS, VIGNETTE_OFFSET, VIGNETTE_SINK, EXIT_DRIFT, EXIT_FADE, LIVE_DELAY_MS,
+  TURN_RATE, DRAG_PX_PER_STEP, SHIFT_STEPS, VIGNETTE_OFFSET, VIGNETTE_SINK, LIVE_DELAY_MS, AUTO_DEG_PER_S, HOVER_SLOW,
+  SPIN_EASE, MAX_FLING, BRUSH,
   MORPH_MS, SEED, BLADE_BUDGET, GRASS_HEIGHT, WIND, MAX_DPR, FIT_PAD_X, FIT_PAD_BOTTOM, COVER_COLS, type Variant, type Palette,
 } from "./config";
 import { bakeGround, plantIsland, islandMask, groundHeight, EXTENT, GROUND_RES, ZONE_RES } from "./island";
@@ -12,13 +14,9 @@ import { tileableFbm } from "./noise";
 import { createVignette, type Vignette } from "./vignettes";
 
 export interface MeadowElements {
-  wrap: HTMLElement;   // the tall section; scroll through it turns the meadow
-  pin: HTMLElement;    // the sticky 100svh block inside it
-  root: HTMLElement;   // gets data-ready / data-still / data-turned
+  root: HTMLElement;   // gets data-ready / data-still
   stage: HTMLElement;  // the fixed-aspect, focusable box (observed for size and visibility)
-  drift: HTMLElement;  // wrapper inside the stage; the canvas is created in here, exit drift/fade apply to it
-  ring: SVGCircleElement; // the hint's progress ring
-  ringLength: number;
+  drift: HTMLElement;  // wrapper inside the stage; the canvas is created in here
   live: HTMLElement;
 }
 
@@ -33,6 +31,7 @@ const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const mod = (n: number, m: number) => ((n % m) + m) % m;
 const ease = (k: number) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
 const STEP = (DETENT_STEP_DEG * Math.PI) / 180;
+const AUTO = (AUTO_DEG_PER_S * Math.PI) / 180;
 const PHI = (CAMERA_ELEVATION_DEG * Math.PI) / 180;
 
 // The planted field's extent along the camera's right axis (lo, hi) and toward the camera (front), sampled per
@@ -84,7 +83,7 @@ function buildFit(root: Float32Array, count: number): (az: number) => Fit {
 const azFor = (i: number) => -i * STEP;
 
 export function startMeadow(els: MeadowElements): () => void {
-  const { wrap, pin, root, stage, drift, ring, live } = els;
+  const { root, stage, drift, live } = els;
   const ac = new AbortController();
   const signal = ac.signal;
   const offs: Array<() => void> = [];
@@ -137,6 +136,7 @@ export function startMeadow(els: MeadowElements): () => void {
   const wd = (WIND.dirDeg * Math.PI) / 180;
   const vigU = new THREE.Vector4(0, 2, 9, Math.tan(PHI));
   const coverA = new Float32Array(COVER_COLS).fill(99), coverB = new Float32Array(COVER_COLS).fill(99);
+  const brush = new THREE.Vector4(0, 0, 0, BRUSH.radius); // pointer in NDC, strength, radius
   const U: Uniforms = {
     uHeightScale: { value: GRASS_HEIGHT }, uTime: { value: 0 }, uWindOn: { value: reduced ? 0 : 1 },
     uWindSpeed: { value: WIND.speed }, uWindBase: { value: WIND.base }, uWindGust: { value: WIND.gust }, uFlutter: { value: WIND.flutter },
@@ -146,6 +146,7 @@ export function startMeadow(els: MeadowElements): () => void {
     uVigPos: { value: vigPos2 }, uVigRight: { value: right2 }, uVigToward: { value: toward2 },
     uVig: { value: vigU },
     uCoverA: { value: coverA }, uCoverB: { value: coverB }, uCoverMix: { value: 0 },
+    uBrush: { value: brush }, uAspect: { value: 2.5 },
     uGround: { value: groundTex }, uNoise: { value: noiseTex }, uZone: { value: zoneTex },
   };
   for (const k of PKEYS) U["u" + k[0].toUpperCase() + k.slice(1)] = { value: cur[k] };
@@ -162,10 +163,11 @@ export function startMeadow(els: MeadowElements): () => void {
 
   // ---------- state ----------
   let index = 0, az = 0, azTarget = 0, dirty = true, simTime = 0, booted = false, disposed = false;
-  // the scene index is round(progress * DETENTS) + offset: scroll drives progress, drag and keys add the offset
-  let progress = 0, offset = 0, exitY = 0, turned = false, liveTimer = 0;
-  let drag: { id: number; x0: number; o0: number } | null = null;
-  const geo = { range: 1, stageBottom: 1, pinTop: 0 };
+  // the island turns at `spin` rad/s, easing back to the auto-turn (negative: the scene index climbs); the scene is
+  // the detent nearest the camera. Under reduced motion it holds still and keys move it to azTarget instead.
+  let spin = -AUTO, hover = false, speak = false, liveTimer = 0;
+  let drag: { id: number; x0: number; az0: number; lx: number; lt: number; v: number } | null = null;
+  let brushAt: { x: number; y: number } | null = null; // the pointer in NDC while a mouse or pen is over the meadow
   const stats = { frames: 0, dts: [] as number[] };
   let raf = 0, last = 0, onScreen = true, firstFrame = false;
 
@@ -193,15 +195,15 @@ export function startMeadow(els: MeadowElements): () => void {
     }
   }
 
-  function announce(now = false) {
+  function announce() {
     const s = mod(index, DETENTS);
     const alt = vig ? vig.sceneAt(s).alt : "";
     stage.setAttribute("aria-valuenow", String(s + 1));
     if (alt) stage.setAttribute("aria-valuetext", alt); else stage.removeAttribute("aria-valuetext");
-    if (RENDER) return;
-    // the live label waits for the scene to settle, so a scroll through the turn is not read out 24 times
+    if (RENDER || !speak) return;
+    // only a keyboard step is read out, once its scene has settled; the auto-turn stays quiet
     window.clearTimeout(liveTimer);
-    liveTimer = window.setTimeout(() => { if (!disposed) live.textContent = alt; }, now ? 0 : LIVE_DELAY_MS);
+    liveTimer = window.setTimeout(() => { if (!disposed) { live.textContent = alt; speak = false; } }, LIVE_DELAY_MS);
   }
 
   function setIndex(i: number) {
@@ -213,38 +215,16 @@ export function startMeadow(els: MeadowElements): () => void {
     dirty = true;
     kick();
   }
-  // progress and offset -> continuous camera target and the nearest scene
-  function retarget() {
-    const base = progress * DETENTS;
-    azTarget = azFor(base + offset);
-    if (reduced) az = azTarget;
-    setIndex(Math.round(base) + offset);
+  // a keyboard step: under reduced motion the camera moves to the next scene; otherwise a velocity impulse on top
+  // of the auto-turn, sized so the glide covers n scenes (the integral of dv * exp(-k t) is dv / k)
+  function step(n: number) {
+    speak = true;
+    if (reduced) { azTarget = azFor(index + n); az = azTarget; setIndex(index + n); return; }
+    spin -= n * STEP * SPIN_EASE;
+    kick();
   }
-  const step = (n: number) => { offset += n; retarget(); };
   // nearest equivalent of scene s from the current index (shortest way round)
   const jumpTo = (s: number) => step(mod(s - mod(index, DETENTS) + DETENTS / 2, DETENTS) - DETENTS / 2);
-
-  // scroll: progress through the pinned range, and how far the block has scrolled out after the pin releases
-  function measure() {
-    const pr = pin.getBoundingClientRect(), sr = stage.getBoundingClientRect();
-    geo.range = Math.max(1, wrap.offsetHeight - pin.offsetHeight);
-    geo.stageBottom = Math.max(1, sr.bottom - pr.top);
-    geo.pinTop = parseFloat(getComputedStyle(pin).top) || 0; // the pin sticks below the sticky header
-  }
-  function readScroll() {
-    if (reduced || RENDER) return;
-    const scrolled = geo.pinTop - wrap.getBoundingClientRect().top;
-    const p = clamp(scrolled / geo.range, 0, 1);
-    exitY = Math.max(0, scrolled - geo.range);
-    if (p !== progress) { progress = p; retarget(); }
-    ring.style.strokeDashoffset = String(els.ringLength * (1 - progress));
-    const done = progress > 0.985;
-    if (done !== turned) { turned = done; if (done) root.dataset.turned = "true"; else delete root.dataset.turned; }
-    // leaving: the meadow drifts at EXIT_DRIFT of the exit distance and is gone by EXIT_FADE of it
-    const fade = clamp(exitY / (EXIT_FADE * geo.stageBottom), 0, 1);
-    drift.style.transform = exitY > 0 ? `translate3d(0, ${(exitY * EXIT_DRIFT).toFixed(1)}px, 0)` : "";
-    drift.style.opacity = fade > 0 ? String(1 - fade * fade * (3 - 2 * fade)) : "";
-  }
 
   function setVariant(v: Variant, instant = false) {
     const to = Object.fromEntries(PKEYS.map((k) => [k, new THREE.Color(PALETTES[v][k])])) as Record<PaletteKey, THREE.Color>;
@@ -266,27 +246,42 @@ export function startMeadow(els: MeadowElements): () => void {
     renderer.setPixelRatio(dpr);
     renderer.setSize(w, h, false);
     aspect = w / h;
+    U.uAspect.value = aspect;
     pxW = w * dpr;
-    measure();
     placeCamera();
     dirty = true;
     kick();
   }
   const ro = new ResizeObserver(resize);
   ro.observe(stage);
-  ro.observe(wrap);
   offs.push(() => ro.disconnect());
   resize();
 
   // ---------- per-frame ----------
   function update(now: number, dt: number) {
     let animating = false;
-    if (az !== azTarget) {
+    if (booted && !reduced && !RENDER) {
+      if (!drag) {
+        const auto = -AUTO * (hover ? HOVER_SLOW : 1);
+        spin += (auto - spin) * (1 - Math.exp(-(dt / 1000) * SPIN_EASE));
+        az += spin * (dt / 1000);
+      }
+      setIndex(Math.round(-az / STEP));
+      animating = true;
+    } else if (az !== azTarget) {
       az += (azTarget - az) * (1 - Math.exp(-(dt / 1000) * TURN_RATE));
       if (Math.abs(azTarget - az) < 1e-4) az = azTarget;
       animating = true;
     }
     if (vig && vig.update(dt, reduced)) animating = true;
+    // the brush follows the pointer and fades in and out
+    const bk = 1 - Math.exp(-(dt / 1000) * BRUSH.ease);
+    const bOn = brushAt && !drag && !reduced ? BRUSH.push : 0;
+    if (brushAt) {
+      if (brush.z < 1e-3) { brush.x = brushAt.x; brush.y = brushAt.y; }
+      else { const pk = Math.min(1, bk * 2); brush.x += (brushAt.x - brush.x) * pk; brush.y += (brushAt.y - brush.y) * pk; }
+    }
+    if (Math.abs(bOn - brush.z) > 1e-3) { brush.z += (bOn - brush.z) * bk; animating = true; } else brush.z = bOn;
     if (palTween) {
       const k = Math.min(1, (now - palTween.t0) / THEME_MS), e = ease(k);
       for (const kk of PKEYS) cur[kk].copy(palTween.from[kk]).lerp(palTween.to[kk], e);
@@ -320,7 +315,6 @@ export function startMeadow(els: MeadowElements): () => void {
     const dt = last ? Math.min(64, now - last) : 16;
     last = now;
     if (!reduced) simTime += dt / 1000;
-    readScroll();
     const animating = update(now, dt);
     if (!reduced || animating || dirty) {
       draw();
@@ -339,26 +333,40 @@ export function startMeadow(els: MeadowElements): () => void {
   function kick() { if (!RENDER) start(); }
 
   // ---------- input ----------
-  // stage drag: every DRAG_PX_PER_STEP of horizontal travel nudges one detent on top of the scroll position
+  // drag: the island follows the pointer (DRAG_PX_PER_STEP of travel per scene) and keeps the release velocity as a
+  // fling that glides back to the auto-turn. A mouse or pen over the meadow brushes the grass aside.
+  const RAD_PER_PX = STEP / DRAG_PX_PER_STEP;
+  const toNdc = (e: PointerEvent) => {
+    const r = canvas.getBoundingClientRect();
+    return { x: ((e.clientX - r.left) / r.width) * 2 - 1, y: 1 - ((e.clientY - r.top) / r.height) * 2 };
+  };
   listen(canvas, "pointerdown", (e: PointerEvent) => {
     if (e.button !== 0 || reduced) return;
     canvas.setPointerCapture(e.pointerId);
-    drag = { id: e.pointerId, x0: e.clientX, o0: offset };
+    drag = { id: e.pointerId, x0: e.clientX, az0: az, lx: e.clientX, lt: performance.now(), v: 0 };
     stage.dataset.turning = "true";
   });
   const endDrag = (e: PointerEvent) => {
     if (!drag || e.pointerId !== drag.id) return;
+    // holding still before letting go means no fling
+    spin = performance.now() - drag.lt > 90 ? 0 : clamp(drag.v, -MAX_FLING, MAX_FLING);
     drag = null;
     delete stage.dataset.turning;
   };
   listen(canvas, "pointermove", (e: PointerEvent) => {
+    if (e.pointerType !== "touch") brushAt = toNdc(e);
+    kick();
     if (!drag || e.pointerId !== drag.id) return;
-    const o = drag.o0 + Math.trunc((e.clientX - drag.x0) / DRAG_PX_PER_STEP);
-    if (o !== offset) { offset = o; retarget(); }
+    const now = performance.now(), dtm = now - drag.lt;
+    az = drag.az0 - (e.clientX - drag.x0) * RAD_PER_PX;
+    if (dtm > 0) drag.v = drag.v * 0.5 - ((e.clientX - drag.lx) * RAD_PER_PX * 500) / dtm;
+    drag.lx = e.clientX; drag.lt = now;
   });
   listen(canvas, "pointerup", endDrag);
   listen(canvas, "pointercancel", endDrag);
   listen(canvas, "lostpointercapture", endDrag);
+  listen(canvas, "pointerenter", () => { hover = true; });
+  listen(canvas, "pointerleave", () => { hover = false; brushAt = null; kick(); });
 
   // keys while the stage has focus: arrows step (Shift x6), Home/End jump to the first/last scene
   listen(stage, "keydown", (e: KeyboardEvent) => {
@@ -381,14 +389,8 @@ export function startMeadow(els: MeadowElements): () => void {
     if (RENDER) return;
     reduced = reduceMQ.matches;
     U.uWindOn.value = reduced ? 0 : 1;
-    if (reduced) {
-      progress = 0; exitY = 0; az = azTarget;
-      drift.style.transform = ""; drift.style.opacity = "";
-      delete root.dataset.turned;
-      retarget();
-    } else {
-      measure();
-    }
+    if (reduced) { azTarget = azFor(index); az = azTarget; brush.z = 0; }
+    else spin = -AUTO;
     dirty = true;
     kick();
   };
@@ -403,7 +405,7 @@ export function startMeadow(els: MeadowElements): () => void {
   window.__meadow = {
     step, jumpTo, stats, buildMs,
     get index() { return index; }, get pos() { return -az / STEP; }, get scene() { return mod(index, DETENTS); },
-    get progress() { return progress; }, get offset() { return offset; }, get exit() { return exitY; },
+    get spin() { return spin; }, get brush() { return brush.toArray(); },
     get morph() { return vig ? vig.state : null; }, get scenes() { return vig ? vig.count : 0; },
     instances: plant.count, heads: plant.heads.length / 3,
     // GPU cost probe: renders n frames back to back and waits for the GPU
@@ -455,8 +457,6 @@ export function startMeadow(els: MeadowElements): () => void {
       draw();
       return;
     }
-    measure();
-    readScroll();
     az = azTarget;
     const first = mod(index, DETENTS);
     if (vig) {
@@ -465,7 +465,7 @@ export function startMeadow(els: MeadowElements): () => void {
       vig.show(first);
       vig.preload(first);
     }
-    announce(true);
+    announce();
     setVariant(themeNow(), true);
     placeCamera();
     booted = true;
@@ -486,9 +486,6 @@ export function startMeadow(els: MeadowElements): () => void {
     renderer.forceContextLoss();
     canvas.remove();
     window.clearTimeout(liveTimer);
-    drift.style.transform = ""; drift.style.opacity = "";
-    ring.style.strokeDashoffset = "";
-    delete root.dataset.turned;
     delete root.dataset.ready;
     delete root.dataset.still;
     delete stage.dataset.turning;

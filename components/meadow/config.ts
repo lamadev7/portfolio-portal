@@ -10,8 +10,12 @@ export const VIEW_TARGET_Y = 2.35; // look-at height (shifts the island down in 
 export const TURN_RATE = 9; // az += (target - az) * (1 - exp(-dt * TURN_RATE))
 export const DRAG_PX_PER_STEP = 90;
 export const SHIFT_STEPS = 6;
-export const EXIT_DRIFT = 0.35; // after the pin releases the meadow moves down by this share of the exit distance (the next section slides over it)
-export const EXIT_FADE = 1.8;  // ... and fades gently, over this multiple of its way out of the viewport
+export const AUTO_DEG_PER_S = 6;  // the island turns on its own: a new scene every 2.5 s, a full turn a minute
+export const HOVER_SLOW = 0.3;    // ... slowing to this share of that under the pointer
+export const SPIN_EASE = 1.6;     // spin += (auto - spin) * (1 - exp(-dt * SPIN_EASE)): how long a fling glides
+export const MAX_FLING = 6;       // rad/s
+// the pointer parts the grass: radius in NDC height, lean at the centre (rad), ease rate of position and strength
+export const BRUSH = { radius: 0.5, push: 1.25, ease: 7 };
 export const LIVE_DELAY_MS = 700; // the aria-live scene label updates once the scene has settled
 export const MAX_DPR = 2;
 export const FIT_PAD_X = 0.15;    // world units the frustum extends past the outermost blade roots on each side

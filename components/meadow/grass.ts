@@ -27,6 +27,8 @@ function bladeGeometry(): THREE.InstancedBufferGeometry {
 export const COMMON = /* glsl */ `
 uniform float uHeightScale, uTime, uWindOn, uWindSpeed, uWindBase, uWindGust, uFlutter, uExtent, uPixelWorld;
 uniform vec2 uWindDir;
+uniform vec4 uBrush;   // pointer in NDC (xy), strength (z, 0 when away), radius in NDC height (w)
+uniform float uAspect;
 uniform vec3 uCamFwd, uCamRight;
 uniform vec2 uVigPos, uVigRight, uVigToward;  // sheet position and its camera-aligned axes (xz)
 uniform vec4 uVig;   // lateral offset of the figures, their half width, sheet width, cover slope
@@ -76,6 +78,14 @@ void bladeSetup() {
   float fl = sin(uTime * (4.5 + 3.5 * aRoot.z) + ph + dot(bWorld, vec2(1.3, 0.7))) * uFlutter * (0.45 + bGust);
   vec2 wperp = vec2(-uWindDir.y, uWindDir.x);
   bend += (uWindDir * (uWindBase + bGust * uWindGust + fl) + wperp * fl * 0.7) * aShape.w * uWindOn;
+  // the pointer parts the grass: blades near it on screen lean sideways, away from it
+  if (uBrush.z > 0.001) {
+    vec4 c = projectionMatrix * viewMatrix * vec4(bRoot + vec3(0.0, bH * 0.6, 0.0), 1.0);
+    vec2 sd = vec2((c.x / c.w - uBrush.x) * uAspect, c.y / c.w - uBrush.y);
+    float sl = length(sd);
+    float fall = 1.0 - smoothstep(0.0, uBrush.w, sl);
+    bend += uCamRight.xz * (sd.x / max(sl, 0.06)) * fall * uBrush.z * (0.5 + 0.7 * aShape.w);
+  }
   float A = length(bend);
   bDir = A > 1e-4 ? bend / A : vec2(1.0, 0.0);
   bA = min(A, 1.35);

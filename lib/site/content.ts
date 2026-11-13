@@ -65,7 +65,7 @@ export const defaultSiteContent: SiteContent = {
       { k: "Experience", v: "4+ years, since 2022" },
       { k: "Based in", v: "Nepal · UTC+5:45" },
       { k: "Open to", v: "Remote, senior roles" },
-      { k: "Focus", v: "Agents · RAG · web" },
+      { k: "Focus", v: "AI Agents · RAG · APIs" },
     ],
     links: [
       { label: "Résumé (PDF) →", href: "/resume" },

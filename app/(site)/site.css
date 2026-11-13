@@ -135,7 +135,7 @@ button { font: inherit; color: inherit; }
 
 /* ---------- hero ---------- */
 
-/* .hero is the tall pinned section rendered by components/meadow/MeadowHero (layout lives in its CSS module) */
+/* .hero is the meadow hero section rendered by components/meadow/MeadowHero (layout lives in its CSS module) */
 .hero h1 {
   font-family: var(--font-serif), Georgia, serif; font-optical-sizing: auto;
   font-weight: 400; font-size: clamp(48px, 5.3vw, 76px); line-height: 1; letter-spacing: -0.022em;
@@ -336,6 +336,7 @@ button { font: inherit; color: inherit; }
 .prose pre code { padding: 0; background: none; font-size: inherit; }
 .prose hr { height: 1px; border: 0; background: var(--line); }
 .prose img { border-radius: 8px; }
+.prose p:has(> img + img) { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .prose strong { font-weight: 600; }
 
 .next-link {
