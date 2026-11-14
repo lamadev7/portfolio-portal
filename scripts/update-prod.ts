@@ -11,7 +11,7 @@ import { readPostFiles, readProjectFiles } from "../lib/content/files";
 import { defaultSiteContent } from "../lib/site/content";
 
 const PROJECT_SLUGS = ["drayos", "triage-agent", "technical-report-reviewer", "job-apply-scout", "ascent"];
-const POST_SLUGS = ["keeping-a-map-alive-all-day"];
+const POST_SLUGS = ["keeping-a-map-alive-all-day", "from-bug-ticket-to-verified-fix"];
 
 async function main() {
   const dry = process.argv.includes("--dry");
