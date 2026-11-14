@@ -4,6 +4,14 @@ import type { Project } from "@/lib/content";
 import { sceneArt } from "@/lib/content/art";
 
 function Cover({ p }: { p: Project }) {
+  const art = sceneArt(p.art, p.artAlt);
+  if (art) {
+    return (
+      <span className="cover cover-art">
+        <Image src={art.src} alt="" width={1536} height={1024} unoptimized />
+      </span>
+    );
+  }
   if (p.shots.length && p.shotFrame === "phone") {
     return (
       <span className="cover cover-phone">
@@ -20,11 +28,10 @@ function Cover({ p }: { p: Project }) {
       </span>
     );
   }
-  const art = sceneArt(p.art, p.artAlt);
-  return <span className="cover cover-art">{art && <Image src={art.src} alt="" width={1536} height={1024} unoptimized />}</span>;
+  return <span className="cover" />;
 }
 
-/** Homepage "Selected work": one compact row per project. Screens and full features live on the case-study page. */
+/** Homepage "Selected work": one compact row per project with its painting. Screens and full features live on the case-study page. */
 export default function WorkShowcase({ projects }: { projects: Project[] }) {
   return (
     <ul className="showcase">
