@@ -53,6 +53,8 @@ export function readProjectFiles(): ProjectInput[] {
     alsoNote: str(data.alsoNote),
     metrics: pairs(data, ["m1", "m2", "m3"]),
     features: pairs(data, ["f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8"]),
+    shots: pairs(data, ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10"]),
+    shotFrame: data.shotFrame === "phone" ? "phone" : "wide",
     cardStack: str(data.cardStack) || list(data.stack).join(" · "),
     cta: data.cta === "code" ? "code" : "case",
     stack: list(data.stack),

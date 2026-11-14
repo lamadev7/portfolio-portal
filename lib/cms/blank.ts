@@ -22,6 +22,8 @@ export const blankProject: ProjectInput = {
   alsoNote: "",
   metrics: [],
   features: [],
+  shots: [],
+  shotFrame: "wide",
   cardStack: "",
   cta: "case",
   stack: [],

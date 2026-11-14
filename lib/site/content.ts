@@ -90,7 +90,8 @@ export const defaultSiteContent: SiteContent = {
         "Building an orchestrator agent that manages and monitors the dispatcher, billing and support sub-agents.",
         "Own features end to end: data models, Node services (Express, Hapi.js) on MongoDB, and TypeScript React screens.",
         "Cut new-screen lead time ~40% with a reusable component design system.",
-        "Kept WebGL map surfaces (Mapbox GL) smooth at production volume; streaming bulk import; real-time with Socket.io and Pusher on AWS.",
+        "Built the live tracking map in React Leaflet: 10k moving markers stay smooth, each updating its position within a second, with low heap use and a light page.",
+        "Streaming bulk import, and real-time updates with Socket.io and Pusher.",
       ],
     },
     {
@@ -138,7 +139,7 @@ export const defaultSiteContent: SiteContent = {
       label: "Frontend",
       items: items([
         ["TypeScript", P], ["React", P], ["Next.js", P], ["Tailwind CSS", P],
-        ["Streaming UIs (WebSocket, SSE)", P], ["Redux Toolkit", P], ["Mapbox GL", P],
+        ["Streaming UIs (WebSocket, SSE)", P], ["Redux Toolkit", P], ["React Leaflet", P],
       ]),
     },
     {

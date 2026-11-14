@@ -18,9 +18,9 @@ export default function Header() {
           </svg>
         </Link>
         <nav className="site-nav" aria-label="Main">
-          <NavLink href="/#work">Work</NavLink>
           <NavLink href="/#experience">Experience</NavLink>
           <NavLink href="/#skills">Skills</NavLink>
+          <NavLink href="/#work">Work</NavLink>
           <NavLink href="/#blogs">Blogs</NavLink>
           <ThemeDots variant="inline" />
         </nav>

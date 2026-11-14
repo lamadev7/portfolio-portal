@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { hasDatabase } from "../db/mongo";
 import { getSiteSettings, listPosts, listProjects } from "../cms/repo";
-import type { Pair, PostInput, ProjectInput, ProjectStatus } from "../cms/types";
+import type { Pair, PostInput, ProjectInput, ProjectStatus, ShotFrame } from "../cms/types";
 import { defaultSiteContent, type SiteContent } from "../site/content";
 import { readPostFiles, readProjectFiles } from "./files";
 import { readingMinutes, renderMarkdown } from "./markdown";
@@ -30,6 +30,8 @@ export interface Project {
   alsoNote?: string;
   metrics: Metric[];
   features: Metric[];
+  shots: Metric[];
+  shotFrame: ShotFrame;
   cardStack: string;
   cta: "case" | "code";
   stack: string[];
@@ -73,6 +75,8 @@ function toProject(p: ProjectInput): Project {
     alsoNote: opt(p.alsoNote),
     metrics: p.metrics,
     features: p.features,
+    shots: p.shots ?? [],
+    shotFrame: p.shotFrame === "phone" ? "phone" : "wide",
     cardStack: p.cardStack || p.stack.join(" · "),
     cta: p.cta,
     stack: p.stack,

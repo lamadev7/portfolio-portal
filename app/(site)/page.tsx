@@ -1,7 +1,7 @@
 import Link from "next/link";
 import MeadowHero from "@/components/meadow/MeadowHero";
-import ProjectCard from "@/components/site/ProjectCard";
 import Reel from "@/components/site/Reel";
+import WorkShowcase from "@/components/site/WorkShowcase";
 import { TIERS, tierLabel } from "@/lib/site/content";
 import { fmtDate, getPosts, getProjects, getSiteContent } from "@/lib/content";
 
@@ -10,10 +10,7 @@ export const revalidate = 3600;
 export default async function Home() {
   const [projects, allPosts, content] = await Promise.all([getProjects(), getPosts(), getSiteContent()]);
   const { site, coreStack, experience, principles, skills, nextPost } = content;
-  const featured = [
-    ...projects.filter((p) => p.status === "shipped" && p.featured).slice(0, 4),
-    ...projects.filter((p) => p.status === "todo"),
-  ];
+  const featured = projects.filter((p) => p.status === "shipped" && p.featured).slice(0, 6);
   const also = projects.filter((p) => p.also);
   const posts = allPosts.slice(0, 3);
 
@@ -64,33 +61,6 @@ export default async function Home() {
           ))}
         </section>
 
-        <section id="work" className="sec" aria-labelledby="work-h">
-          <div className="sec-head" data-reveal>
-            <h2 id="work-h">Selected work</h2>
-            <Link href="/work" className="more">
-              All projects <span className="arr" aria-hidden="true">→</span>
-            </Link>
-          </div>
-          {featured.map((p) => (
-            <div key={p.slug} data-reveal>
-              <ProjectCard p={p} />
-            </div>
-          ))}
-
-          {also.length > 0 && (
-            <p className="also" data-reveal>
-              Also:{" "}
-              {also.map((p, i) => (
-                <span key={p.slug}>
-                  {i > 0 && " · "}
-                  <Link href={`/work/${p.slug}`}>{p.title}</Link>
-                  {p.alsoNote && ` (${p.alsoNote})`}
-                </span>
-              ))}
-            </p>
-          )}
-        </section>
-
         <section id="experience" className="sec" aria-labelledby="exp-h">
           <h2 id="exp-h" className="sec-head" data-reveal>
             Experience
@@ -113,21 +83,6 @@ export default async function Home() {
               </div>
             ))}
           </div>
-        </section>
-
-        <section id="agents" className="sec" aria-labelledby="agents-h">
-          <h2 id="agents-h" className="sec-head" data-reveal>
-            How I build agents
-          </h2>
-          <ol className="principles" data-reveal>
-            {principles.map((pr, i) => (
-              <li key={pr.title}>
-                <p className="n">{String(i + 1).padStart(2, "0")}</p>
-                <h3>{pr.title}</h3>
-                <p>{pr.body}</p>
-              </li>
-            ))}
-          </ol>
         </section>
 
         <section id="skills" className="sec" aria-labelledby="skills-h">
@@ -157,6 +112,46 @@ export default async function Home() {
             </div>
           ))}
           <p className="footnote">Ordered by how often 47 current full-stack AI postings ask for each skill.</p>
+        </section>
+      </div>
+
+      <section id="work" className="sec col" aria-labelledby="work-h">
+          <div className="sec-head" data-reveal>
+            <h2 id="work-h">Selected work</h2>
+            <Link href="/work" className="more">
+              All projects <span className="arr" aria-hidden="true">→</span>
+            </Link>
+          </div>
+          <WorkShowcase projects={featured} />
+
+          {also.length > 0 && (
+            <p className="also" data-reveal>
+              Also:{" "}
+              {also.map((p, i) => (
+                <span key={p.slug}>
+                  {i > 0 && " · "}
+                  <Link href={`/work/${p.slug}`}>{p.title}</Link>
+                  {p.alsoNote && ` (${p.alsoNote})`}
+                </span>
+              ))}
+            </p>
+          )}
+      </section>
+
+      <div className="col">
+        <section id="agents" className="sec" aria-labelledby="agents-h">
+          <h2 id="agents-h" className="sec-head" data-reveal>
+            How I build agents
+          </h2>
+          <ol className="principles" data-reveal>
+            {principles.map((pr, i) => (
+              <li key={pr.title}>
+                <p className="n">{String(i + 1).padStart(2, "0")}</p>
+                <h3>{pr.title}</h3>
+                <p>{pr.body}</p>
+              </li>
+            ))}
+          </ol>
         </section>
 
         <section id="blogs" className="sec" aria-labelledby="blogs-h">

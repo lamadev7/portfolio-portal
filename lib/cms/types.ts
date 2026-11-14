@@ -7,6 +7,9 @@ export interface Pair {
 
 export type ProjectStatus = "shipped" | "todo";
 
+/** "wide" for web app screenshots, "phone" for mobile screens. */
+export type ShotFrame = "wide" | "phone";
+
 export interface ProjectInput {
   slug: string;
   title: string;
@@ -30,6 +33,9 @@ export interface ProjectInput {
   alsoNote: string;
   metrics: Pair[];
   features: Pair[];
+  /** Homepage carousel screens: v is the image path, k the caption. */
+  shots: Pair[];
+  shotFrame: ShotFrame;
   cardStack: string;
   cta: "case" | "code";
   stack: string[];

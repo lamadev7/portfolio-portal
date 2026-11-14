@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Art from "@/components/site/Art";
+import ScreenCarousel from "@/components/site/ScreenCarousel";
 import { getProject, getProjects } from "@/lib/content";
 import { sceneArt } from "@/lib/content/art";
 
@@ -44,7 +45,13 @@ export default async function ProjectPage({ params }: Params) {
         <p className="tag">{p.summary}</p>
       </header>
 
-      <Art art={sceneArt(p.art, p.artAlt)} priority />
+      {p.shots.length > 0 ? (
+        <div className="page-shots" data-reveal>
+          <ScreenCarousel title={p.title} frame={p.shotFrame} shots={p.shots.map((s) => ({ src: s.v, caption: s.k }))} />
+        </div>
+      ) : (
+        <Art art={sceneArt(p.art, p.artAlt)} priority />
+      )}
 
       <dl className="facts-grid" data-reveal>
         <div>
@@ -86,6 +93,17 @@ export default async function ProjectPage({ params }: Params) {
             ))}
           </div>
         </div>
+      )}
+
+      {p.features.length > 0 && (
+        <ul className="feature-list" data-reveal aria-label="Features">
+          {p.features.map((f) => (
+            <li key={f.v}>
+              <b>{f.v}</b>
+              {f.k}
+            </li>
+          ))}
+        </ul>
       )}
 
       {p.highlight && (

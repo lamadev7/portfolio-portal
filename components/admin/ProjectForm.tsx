@@ -13,7 +13,7 @@ import { Area, ArtPicker, Field, MarkdownEditor, PairsEditor, SaveBar, Section, 
 
 export default function ProjectForm({ id, initial, scenes }: { id: string | null; initial: ProjectInput; scenes: SceneOption[] }) {
   const router = useRouter();
-  const [d, setD] = useState<ProjectInput>(initial);
+  const [d, setD] = useState<ProjectInput>({ ...initial, shots: initial.shots ?? [], shotFrame: initial.shotFrame ?? "wide" });
   const [stackText, setStackText] = useState(initial.stack.join(", "));
   const [slugTouched, setSlugTouched] = useState(Boolean(id));
   const { pending, msg, run } = useSaver();
@@ -101,6 +101,15 @@ export default function ProjectForm({ id, initial, scenes }: { id: string | null
         <Section title="Features" desc="Major features. When present, the card lists these instead of the result boxes.">
           <div className="field-wide">
             <PairsEditor items={d.features} onChange={set("features")} max={8} vLabel="Feature name" kLabel="What it does" addLabel="Add feature" />
+          </div>
+        </Section>
+
+        <Section title="Screens" desc="Screenshots for the homepage carousel, in order. Put the images in public/work/<slug>/ and use their paths.">
+          <Field label="Frame" hint="Wide for web apps, phone for mobile screens.">
+            <Select value={d.shotFrame} onChange={set("shotFrame")} options={[{ value: "wide", label: "Wide (web app)" }, { value: "phone", label: "Phone" }]} />
+          </Field>
+          <div className="field-wide">
+            <PairsEditor items={d.shots} onChange={set("shots")} max={10} vLabel="/work/slug/01-screen.webp" kLabel="Caption" addLabel="Add screen" />
           </div>
         </Section>
 

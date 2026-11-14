@@ -60,6 +60,14 @@ function pairs(v: unknown, label: string, maxItems: number): Pair[] {
     .filter((p) => p.v || p.k);
 }
 
+function shots(v: unknown): Pair[] {
+  const list = pairs(v, "Screen", 10).filter((p) => p.v);
+  for (const p of list) {
+    if (!/^(\/|https:\/\/)/.test(p.v)) throw new CmsError(`Screen "${p.v}" must be a site path like /work/slug/01.webp or an https link.`);
+  }
+  return list;
+}
+
 function slug(v: unknown): string {
   const s = text(v, "Slug", 80, true);
   if (!SLUG.test(s)) throw new CmsError("Slug may only use lowercase letters, numbers and single hyphens.");
@@ -108,6 +116,8 @@ export function cleanProject(input: unknown): ProjectInput {
     alsoNote: text(r.alsoNote, "Also note", 120),
     metrics: pairs(r.metrics, "Result", 3),
     features: pairs(r.features, "Feature", 8),
+    shots: shots(r.shots),
+    shotFrame: r.shotFrame === "phone" ? "phone" : "wide",
     cardStack: text(r.cardStack, "Card stack line", 200),
     cta: r.cta === "code" ? "code" : "case",
     stack: strings(r.stack, "Stack item", 40, 60),
