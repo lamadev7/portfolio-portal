@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { fmtDate, getPosts, getSiteContent } from "@/lib/content";
+import { fmtDate, getPosts } from "@/lib/content";
 
 export const metadata: Metadata = {
   title: "Blogs",
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export const revalidate = 3600;
 
 export default async function BlogIndex() {
-  const [posts, { nextPost }] = await Promise.all([getPosts(), getSiteContent()]);
+  const posts = await getPosts();
   return (
     <div className="col">
       <header className="page-head" data-reveal>
@@ -35,13 +35,6 @@ export default async function BlogIndex() {
               </Link>
             </div>
           ))}
-          <div className="dated-row is-next" data-reveal>
-            <p className="dated-when">Next</p>
-            <div className="dated-body post">
-              <b>{nextPost.title}</b>
-              <span>{nextPost.summary}</span>
-            </div>
-          </div>
         </div>
       </section>
     </div>
