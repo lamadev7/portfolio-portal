@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 300" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" role="img" aria-label="Benchmark on the same bug and model. Time per bug: plain Claude Code 17.2 seconds, Triage Agent fast pipeline 15.6 seconds, Triage Agent full five-agent pipeline 83 seconds. Model cost per bug: plain Claude Code 0.059 dollars, Triage fast 0.058 dollars, Triage full 0.353 dollars.">
+  <style>
+    .ttl{fill:#23201c;font-size:14px;font-weight:600}
+    .lab{fill:#6b6459;font-size:12px}
+    .val{fill:#23201c;font-size:12px;font-weight:600}
+    .axis{stroke:#d9d3c8;stroke-width:1}
+    .bar-n{fill:#b3aa99}
+    .bar-a{fill:#3a6ea5}
+    .bar-r{fill:#d79433}
+    .leg{fill:#6b6459;font-size:11px}
+    @media (prefers-color-scheme:dark){
+      .ttl{fill:#ece7dd}.lab{fill:#a39b8d}.val{fill:#ece7dd}.leg{fill:#a39b8d}
+      .axis{stroke:#3a342b}
+      .bar-n{fill:#6f6657}.bar-a{fill:#7aa7ff}.bar-r{fill:#e0a24a}
+    }
+  </style>
+
+  <!-- legend -->
+  <rect x="20" y="14" width="12" height="12" rx="2" class="bar-n"/><text x="38" y="24" class="leg">Plain Claude Code</text>
+  <rect x="178" y="14" width="12" height="12" rx="2" class="bar-a"/><text x="196" y="24" class="leg">Triage — fast (default)</text>
+  <rect x="356" y="14" width="12" height="12" rx="2" class="bar-r"/><text x="374" y="24" class="leg">Triage — full (5 agents)</text>
+
+  <!-- Panel 1: Time -->
+  <text x="20" y="64" class="ttl">Time per bug</text>
+  <text x="402" y="64" text-anchor="end" class="lab">seconds, lower is better</text>
+  <line x1="150" y1="78" x2="150" y2="200" class="axis"/>
+  <!-- scale: 240px = 83s -->
+  <text x="140" y="98" text-anchor="end" class="lab">Plain</text>
+  <rect x="150" y="86" width="49.7" height="20" rx="3" class="bar-n"/>
+  <text x="205.7" y="101" class="val">17.2s</text>
+  <text x="140" y="138" text-anchor="end" class="lab">Fast</text>
+  <rect x="150" y="126" width="45.1" height="20" rx="3" class="bar-a"/>
+  <text x="201.1" y="141" class="val">15.6s</text>
+  <text x="140" y="178" text-anchor="end" class="lab">Full</text>
+  <rect x="150" y="166" width="240" height="20" rx="3" class="bar-r"/>
+  <text x="396" y="181" class="val">83s</text>
+
+  <!-- Panel 2: Cost -->
+  <text x="470" y="64" class="ttl">Model cost per bug</text>
+  <text x="852" y="64" text-anchor="end" class="lab">USD, lower is better</text>
+  <line x1="600" y1="78" x2="600" y2="200" class="axis"/>
+  <!-- scale: 240px = $0.353 -->
+  <text x="590" y="98" text-anchor="end" class="lab">Plain</text>
+  <rect x="600" y="86" width="40.1" height="20" rx="3" class="bar-n"/>
+  <text x="646.1" y="101" class="val">$0.059</text>
+  <text x="590" y="138" text-anchor="end" class="lab">Fast</text>
+  <rect x="600" y="126" width="39.4" height="20" rx="3" class="bar-a"/>
+  <text x="645.4" y="141" class="val">$0.058</text>
+  <text x="590" y="178" text-anchor="end" class="lab">Full</text>
+  <rect x="600" y="166" width="240" height="20" rx="3" class="bar-r"/>
+  <text x="832" y="181" text-anchor="end" class="val" style="fill:#fff">$0.353</text>
+
+  <!-- takeaway -->
+  <text x="20" y="236" class="lab">Same bug, same model (claude-sonnet-5-5). The fast pipeline matches plain Claude Code on time and cost —</text>
+  <text x="20" y="254" class="lab">while also proving the fix, opening the draft PR and saving a reusable fix card. The five-agent pipeline is</text>
+  <text x="20" y="272" class="lab">about 5× slower and 6× dearer, which is what moved the default to one agent plus the runner.</text>
+</svg>
