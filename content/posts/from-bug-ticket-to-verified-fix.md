@@ -1,13 +1,11 @@
 ---
-title: From a bug ticket to a verified fix
-summary: How Triage Agent turns a Jira or Linear bug into a proven, draft pull request — the architecture, the workflow, and a benchmark against plain Claude Code.
+title: "Triage Agent: bug ticket to verified fix"
+summary: A self-hosted app where an agent fixes a bug and plain code proves it — the workflow, the architecture, and a benchmark against plain Claude Code.
 date: 2026-11-14
 tags: [agents, architecture, testing]
 ---
 
-A coding assistant can already read a bug, find the cause and write a fix. The hard parts are the ones around that: starting without copy-and-paste, proving the fix actually works, keeping a shared repository safe, and letting a team reuse what it learns. Triage Agent is a self-hosted app that closes those gaps. You connect your repositories and your ticket tracker (Jira or Linear), click **Triage** on a bug, and get back a draft pull request that has already been checked.
-
-The agent itself is Claude Code, driven through Anthropic's Claude Agent SDK. Around it, the app adds what a team needs: an isolated workspace per ticket, guardrails, a record of every run, and a shared memory of fixes it has already verified. It runs as a web app or a packaged macOS desktop app.
+Triage Agent turns a bug ticket into a draft pull request that has already been checked. You connect your repositories and your ticket tracker (Jira or Linear), click **Triage**, and an agent reproduces the bug and fixes it while a runner proves the fix before anything ships. It is built on Claude Code and runs on your own machine.
 
 ## Why it exists
 
