@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 650" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" role="img" aria-label="Triage Agent architecture: the browser or desktop app sends a message to Next.js API routes, which enqueue a job in Redis and BullMQ. A worker, the chat runner, calls the Claude Agent SDK and Claude Code CLI, which talk to Anthropic's API and to tools over MCP. The runner writes to MongoDB, streams events through Redis back to the browser, and pushes a branch and draft pull request to the git remote.">
+  <style>
+    .box{fill:#faf8f3;stroke:#d9d3c8}
+    .box-n{fill:#f0ece3;stroke:#c9c2b4}
+    .box-a{fill:#e9f0fb;stroke:#3a6ea5}
+    .box-r{fill:#fbf0dd;stroke:#b07516}
+    .t{fill:#23201c;font-size:14px;font-weight:600}
+    .s{fill:#6b6459;font-size:11px}
+    .lbl{fill:#6b6459;font-size:11px}
+    .leg{fill:#6b6459;font-size:11px}
+    .ar{stroke:#9b9486;stroke-width:1.6;fill:none}
+    .ah{fill:#9b9486}
+    @media (prefers-color-scheme:dark){
+      .box{fill:#1b1813;stroke:#3a342b}
+      .box-n{fill:#211d17;stroke:#423b30}
+      .box-a{fill:#17243a;stroke:#7aa7ff}
+      .box-r{fill:#2e2411;stroke:#e0a24a}
+      .t{fill:#ece7dd}.s{fill:#a39b8d}.lbl{fill:#a39b8d}.leg{fill:#a39b8d}
+      .ar{stroke:#6f6657}.ah{fill:#6f6657}
+    }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+  </defs>
+
+  <!-- legend -->
+  <rect x="20" y="14" width="12" height="12" rx="3" class="box-a"/><text x="38" y="24" class="leg">agent</text>
+  <rect x="110" y="14" width="12" height="12" rx="3" class="box-r"/><text x="128" y="24" class="leg">runner / app code</text>
+  <rect x="270" y="14" width="12" height="12" rx="3" class="box-n"/><text x="288" y="24" class="leg">external</text>
+
+  <!-- center column -->
+  <rect x="40" y="48" width="500" height="58" rx="10" class="box"/>
+  <text x="290" y="72" text-anchor="middle" class="t">Browser or macOS desktop app</text>
+  <text x="290" y="91" text-anchor="middle" class="s">Tickets · Chat · Knowledge · Configuration · Team (React + Tailwind)</text>
+
+  <rect x="40" y="146" width="500" height="58" rx="10" class="box"/>
+  <text x="290" y="170" text-anchor="middle" class="t">Next.js API routes</text>
+  <text x="290" y="189" text-anchor="middle" class="s">send a message · stream a run's progress · projects, credentials, knowledge</text>
+
+  <rect x="40" y="244" width="500" height="52" rx="10" class="box"/>
+  <text x="290" y="266" text-anchor="middle" class="t">Job queue — Redis + BullMQ</text>
+  <text x="290" y="283" text-anchor="middle" class="s">one turn at a time per session, survives a restart</text>
+
+  <rect x="40" y="336" width="500" height="86" rx="10" class="box-r"/>
+  <text x="290" y="360" text-anchor="middle" class="t">Worker — the chat runner</text>
+  <text x="290" y="379" text-anchor="middle" class="s">picks the role · builds the prompt · attaches tools + safety hooks</text>
+  <text x="290" y="395" text-anchor="middle" class="s">then verifies, delivers and remembers</text>
+  <text x="290" y="411" text-anchor="middle" class="s">one isolated checkout per ticket</text>
+
+  <rect x="40" y="462" width="500" height="54" rx="10" class="box-a"/>
+  <text x="290" y="485" text-anchor="middle" class="t">Claude Agent SDK → Claude Code CLI</text>
+  <text x="290" y="503" text-anchor="middle" class="s">the agent session: reads code, runs tests, edits files</text>
+
+  <rect x="40" y="556" width="500" height="58" rx="10" class="box"/>
+  <text x="290" y="580" text-anchor="middle" class="t">Tools over MCP</text>
+  <text x="290" y="599" text-anchor="middle" class="s">Jira · Linear · GitHub · browser · code search · submit-fix · search-memory</text>
+
+  <!-- side column -->
+  <rect x="600" y="146" width="230" height="58" rx="10" class="box-n"/>
+  <text x="715" y="170" text-anchor="middle" class="t">Git remote (GitHub)</text>
+  <text x="715" y="189" text-anchor="middle" class="s">branch + draft pull request</text>
+
+  <rect x="600" y="244" width="230" height="52" rx="10" class="box"/>
+  <text x="715" y="266" text-anchor="middle" class="t">Redis event stream</text>
+  <text x="715" y="283" text-anchor="middle" class="s">live run events, replayable</text>
+
+  <rect x="600" y="336" width="230" height="86" rx="10" class="box"/>
+  <text x="715" y="360" text-anchor="middle" class="t">MongoDB</text>
+  <text x="715" y="379" text-anchor="middle" class="s">users · projects · sessions</text>
+  <text x="715" y="395" text-anchor="middle" class="s">messages · run traces</text>
+  <text x="715" y="411" text-anchor="middle" class="s">memory cards · repo facts</text>
+
+  <rect x="600" y="462" width="230" height="54" rx="10" class="box-n"/>
+  <text x="715" y="492" text-anchor="middle" class="t">Anthropic API</text>
+  <text x="715" y="509" text-anchor="middle" class="s">claude-sonnet-5-5</text>
+
+  <!-- center arrows -->
+  <line x1="290" y1="106" x2="290" y2="144" class="ar" marker-end="url(#a)"/>
+  <text x="300" y="130" class="lbl">send message</text>
+  <line x1="290" y1="204" x2="290" y2="242" class="ar" marker-end="url(#a)"/>
+  <text x="300" y="228" class="lbl">enqueue job</text>
+  <line x1="290" y1="296" x2="290" y2="334" class="ar" marker-end="url(#a)"/>
+  <text x="300" y="320" class="lbl">run the turn</text>
+  <line x1="290" y1="422" x2="290" y2="460" class="ar" marker-end="url(#a)"/>
+  <text x="300" y="446" class="lbl">drive the agent</text>
+  <line x1="290" y1="516" x2="290" y2="554" class="ar" marker-end="url(#a)"/>
+  <text x="300" y="540" class="lbl">tool calls</text>
+
+  <!-- side arrows -->
+  <line x1="540" y1="489" x2="598" y2="489" class="ar" marker-end="url(#a)"/>
+  <text x="569" y="481" text-anchor="middle" class="lbl">prompts</text>
+  <line x1="540" y1="372" x2="598" y2="372" class="ar" marker-end="url(#a)"/>
+  <text x="569" y="364" text-anchor="middle" class="lbl">reads / writes</text>
+  <path d="M540,352 L575,352 L575,270 L598,270" class="ar" marker-end="url(#a)"/>
+  <text x="583" y="316" text-anchor="end" class="lbl">events</text>
+  <path d="M540,344 L560,344 L560,175 L598,175" class="ar" marker-end="url(#a)"/>
+  <text x="552" y="250" text-anchor="end" class="lbl">push</text>
+  <path d="M830,258 L848,258 L848,36 L430,36 L430,46" class="ar" marker-end="url(#a)"/>
+  <text x="648" y="30" text-anchor="middle" class="lbl">live progress streamed back to the browser (SSE)</text>
+</svg>
