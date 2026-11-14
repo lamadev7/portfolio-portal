@@ -38,6 +38,8 @@ The default flow uses a single agent session for the thinking, and leaves every 
 6. **Deliver** *(runner)*. Commit, push a branch (for example `SHOP-42-AGENT`), open a draft pull request, and post one comment on the ticket.
 7. **Remember** *(runner)*. Save the verified fix — symptoms, cause, fix, files, commit — to team memory for the next related ticket.
 
+![The Triage Agent workflow: a ticket goes to the runner, which prepares an isolated workspace and recalls memory; the agent reproduces and fixes; the runner verifies, delivers a draft pull request and saves a fix card, with a failed check looping back to the agent up to three times.](/blog/triage-workflow.svg)
+
 A concrete run: ticket `SHOP-42`, "the `SAVE10` discount isn't applied when the cart subtotal is exactly $100." The agent reproduced it, traced it to a strict `>` where the terms said "or more", changed one line (`src/pricing.js`), and the runner verified and delivered the draft pull request in about sixteen seconds, at roughly six cents of model cost.
 
 ## The agent and the runner
@@ -57,6 +59,8 @@ The app is a few plain parts wired in a line, so each one does a single job and 
 - **The agent** is the Claude Agent SDK starting the Claude Code command-line tool, which talks to Anthropic's API and to its tools.
 - **The tools** connect over the Model Context Protocol, a standard way to give a model typed tools: Jira, Linear, GitHub, a real browser for UI checks, fast code search, plus two of the app's own — one to submit a fix, one to search memory.
 - **Storage** is MongoDB for everything that should last (users, projects, sessions, messages, run traces, memory cards) and Redis for the live event stream that feeds the browser.
+
+![The Triage Agent architecture: the browser or desktop app sends a message to Next.js API routes, which enqueue a job in Redis and BullMQ; a worker — the chat runner — drives the Claude Agent SDK and Claude Code CLI, which call Anthropic's API and tools over MCP; the runner reads and writes MongoDB, streams events through Redis back to the browser, and pushes a branch and draft pull request to the git remote.](/blog/triage-architecture.svg)
 
 Put together, a request flows top to bottom: browser → API route → queue → worker → agent → tools, with results written to MongoDB and progress streamed back to the browser through Redis. The important design point is that the runner sits *between* the queue and the agent, so it — not the model — owns the workspace, the checks and the delivery. The agent never pushes code or opens a pull request itself.
 

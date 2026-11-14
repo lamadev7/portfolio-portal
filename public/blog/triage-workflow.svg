@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 300" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" role="img" aria-label="Triage Agent workflow: a ticket goes to the runner, which prepares an isolated workspace and recalls memory; the agent reproduces and fixes; the runner verifies, delivers a draft pull request, and saves a fix card. A failed check loops back to the agent, up to three attempts.">
+  <style>
+    .bg{fill:none}
+    .box{fill:#faf8f3;stroke:#d9d3c8}
+    .box-n{fill:#f0ece3;stroke:#c9c2b4}
+    .box-a{fill:#e9f0fb;stroke:#3a6ea5}
+    .box-r{fill:#fbf0dd;stroke:#b07516}
+    .t{fill:#23201c;font-size:14px;font-weight:600}
+    .s{fill:#6b6459;font-size:11px}
+    .lbl{fill:#6b6459;font-size:11px}
+    .lbl-f{fill:#b4342b;font-size:11px;font-weight:600}
+    .ar{stroke:#9b9486;stroke-width:1.6;fill:none}
+    .ah{fill:#9b9486}
+    .ar-f{stroke:#b4342b;stroke-width:1.6;fill:none;stroke-dasharray:5 4}
+    .ah-f{fill:#b4342b}
+    .cap-a{fill:#3a6ea5;font-size:11px;font-weight:600}
+    .cap-r{fill:#b07516;font-size:11px;font-weight:600}
+    .leg{fill:#6b6459;font-size:11px}
+    @media (prefers-color-scheme:dark){
+      .box{fill:#1b1813;stroke:#3a342b}
+      .box-n{fill:#211d17;stroke:#423b30}
+      .box-a{fill:#17243a;stroke:#7aa7ff}
+      .box-r{fill:#2e2411;stroke:#e0a24a}
+      .t{fill:#ece7dd}.s{fill:#a39b8d}.lbl{fill:#a39b8d}.leg{fill:#a39b8d}
+      .ar{stroke:#6f6657}.ah{fill:#6f6657}
+      .cap-a{fill:#7aa7ff}.cap-r{fill:#e0a24a}
+      .lbl-f{fill:#f2756b}.ar-f{stroke:#f2756b}.ah-f{fill:#f2756b}
+    }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+    <marker id="af" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-f"/></marker>
+  </defs>
+
+  <!-- legend -->
+  <rect x="20" y="16" width="12" height="12" rx="3" class="box-a"/><text x="38" y="26" class="leg">agent (Claude model)</text>
+  <rect x="190" y="16" width="12" height="12" rx="3" class="box-r"/><text x="208" y="26" class="leg">runner (plain code)</text>
+  <rect x="352" y="16" width="12" height="12" rx="3" class="box-n"/><text x="370" y="26" class="leg">outside the app</text>
+
+  <!-- row of boxes -->
+  <g>
+    <rect x="16" y="86" width="118" height="74" rx="10" class="box-n"/>
+    <text x="75" y="118" text-anchor="middle" class="t">Ticket</text>
+    <text x="75" y="137" text-anchor="middle" class="s">Jira / Linear</text>
+
+    <rect x="156" y="86" width="126" height="74" rx="10" class="box-r"/>
+    <text x="219" y="114" text-anchor="middle" class="t">Prepare</text>
+    <text x="219" y="132" text-anchor="middle" class="s">isolated workspace</text>
+    <text x="219" y="147" text-anchor="middle" class="s">+ memory recall</text>
+
+    <rect x="304" y="86" width="140" height="74" rx="10" class="box-a"/>
+    <text x="374" y="114" text-anchor="middle" class="t">Reproduce + fix</text>
+    <text x="374" y="132" text-anchor="middle" class="s">failing test first,</text>
+    <text x="374" y="147" text-anchor="middle" class="s">then smallest change</text>
+
+    <rect x="466" y="86" width="132" height="74" rx="10" class="box-r"/>
+    <text x="532" y="114" text-anchor="middle" class="t">Verify</text>
+    <text x="532" y="132" text-anchor="middle" class="s">fail on base, pass on</text>
+    <text x="532" y="147" text-anchor="middle" class="s">fix · suite · build</text>
+
+    <rect x="620" y="86" width="122" height="74" rx="10" class="box-r"/>
+    <text x="681" y="114" text-anchor="middle" class="t">Deliver</text>
+    <text x="681" y="132" text-anchor="middle" class="s">branch · draft PR</text>
+    <text x="681" y="147" text-anchor="middle" class="s">· ticket comment</text>
+
+    <rect x="764" y="86" width="100" height="74" rx="10" class="box-r"/>
+    <text x="814" y="114" text-anchor="middle" class="t">Remember</text>
+    <text x="814" y="132" text-anchor="middle" class="s">save a</text>
+    <text x="814" y="147" text-anchor="middle" class="s">fix card</text>
+  </g>
+
+  <!-- arrows -->
+  <line x1="134" y1="123" x2="154" y2="123" class="ar" marker-end="url(#a)"/>
+  <line x1="282" y1="123" x2="302" y2="123" class="ar" marker-end="url(#a)"/>
+  <line x1="444" y1="123" x2="464" y2="123" class="ar" marker-end="url(#a)"/>
+  <line x1="598" y1="123" x2="618" y2="123" class="ar" marker-end="url(#a)"/>
+  <line x1="742" y1="123" x2="762" y2="123" class="ar" marker-end="url(#a)"/>
+
+  <text x="144" y="78" text-anchor="middle" class="lbl">click</text>
+  <text x="293" y="78" text-anchor="middle" class="cap-r">+ card</text>
+  <text x="454" y="78" text-anchor="middle" class="cap-a">submit</text>
+  <text x="608" y="78" text-anchor="middle" class="lbl">all green</text>
+  <text x="752" y="78" text-anchor="middle" class="lbl">pushed</text>
+
+  <!-- fail loop: Verify back to Reproduce+fix -->
+  <path d="M532,160 L532,214 L374,214 L374,162" class="ar-f" marker-end="url(#af)"/>
+  <text x="453" y="236" text-anchor="middle" class="lbl-f">a check fails → output goes back to the same agent session (up to 3 attempts)</text>
+
+  <!-- key line -->
+  <text x="20" y="282" class="s">The model only does step 3. Every check that decides whether a fix ships runs as code — on the old commit and on the fix.</text>
+</svg>
