@@ -9,7 +9,7 @@ export const revalidate = 3600;
 
 export default async function Home() {
   const [projects, allPosts, content] = await Promise.all([getProjects(), getPosts(), getSiteContent()]);
-  const { site, coreStack, experience, principles, skills, nextPost } = content;
+  const { site, coreStack, experience, principles, skills } = content;
   const featured = projects.filter((p) => p.status === "shipped" && p.featured).slice(0, 6);
   const also = projects.filter((p) => p.also);
   const posts = allPosts.slice(0, 3);
@@ -171,13 +171,6 @@ export default async function Home() {
                 </Link>
               </div>
             ))}
-            <div className="dated-row is-next" data-reveal>
-              <p className="dated-when">Next</p>
-              <div className="dated-body post">
-                <b>{nextPost.title}</b>
-                <span>{nextPost.summary}</span>
-              </div>
-            </div>
           </div>
         </section>
       </div>
