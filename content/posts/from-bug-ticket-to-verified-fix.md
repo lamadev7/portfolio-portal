@@ -3,7 +3,6 @@ title: From a bug ticket to a verified fix
 summary: How Triage Agent turns a Jira or Linear bug into a proven, draft pull request — the architecture, the build, and why a runner grades the fix instead of the model.
 date: 2026-11-14
 tags: [agents, architecture, testing]
-art: s07
 ---
 
 A coding assistant can already read a bug, find the cause and write a fix. The hard parts are the ones around that work: starting without copy-and-paste, proving the fix actually works, keeping a shared repository safe, and letting a whole team reuse what it learns. Triage Agent is a self-hosted app that closes those gaps. You connect your repositories and your ticket tracker, click **Triage** on a bug, and get back a draft pull request that has already been checked. This is what it is, why it exists, how it is built, and how it works end to end.
