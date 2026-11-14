@@ -1,35 +1,35 @@
 {
-  "name": "portfolio-next-v2",
+  "name": "parbat-portfolio",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "seed": "tsx --env-file=.env scripts/seed.ts",
+    "admin:password": "tsx --env-file=.env scripts/admin-password.ts"
   },
   "dependencies": {
-    "@types/react-icons": "^2.2.7",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "framer-motion": "^12.0.6",
-    "lucide-react": "^0.474.0",
-    "next": "15.1.6",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-icons": "^5.4.0",
-    "tailwind-merge": "^3.0.1",
-    "tailwindcss-animate": "^1.0.7"
+    "maplibre-gl": "5.24.0",
+    "mongodb": "6.21.0",
+    "next": "14.2.15",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "three": "0.158.0",
+    "topojson-client": "3.1.0",
+    "world-atlas": "2.0.2"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "15.1.6",
-    "postcss": "^8",
-    "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "@types/node": "20.14.10",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "@types/three": "0.158.3",
+    "@types/topojson-client": "3.1.5",
+    "eslint": "8.57.0",
+    "eslint-config-next": "14.2.15",
+    "tsx": "4.23.15",
+    "typescript": "5.5.3"
   }
 }
