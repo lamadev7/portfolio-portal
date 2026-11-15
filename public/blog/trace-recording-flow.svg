@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 250" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" role="img" aria-label="How Trace records: the phone's GPS and motion sensors feed a background task that runs even with the screen off; it filters each fix and writes accepted points to SQLite on the phone; the screens only read from SQLite. If the app is killed, the next launch restores the run from SQLite.">
+  <style>
+    .box-n{fill:#f0ece3;stroke:#c9c2b4}
+    .box-a{fill:#e9f0fb;stroke:#3a6ea5}
+    .box-r{fill:#fbf0dd;stroke:#b07516}
+    .t{fill:#23201c;font-size:14px;font-weight:600}
+    .s{fill:#6b6459;font-size:11px}
+    .lbl{fill:#6b6459;font-size:11px}
+    .ar{stroke:#9b9486;stroke-width:1.6;fill:none}
+    .ah{fill:#9b9486}
+    .ar-d{stroke:#b07516;stroke-width:1.6;fill:none;stroke-dasharray:5 4}
+    .ah-d{fill:#b07516}
+    .lbl-d{fill:#b07516;font-size:11px;font-weight:600}
+    .leg{fill:#6b6459;font-size:11px}
+    @media (prefers-color-scheme:dark){
+      .box-n{fill:#211d17;stroke:#423b30}
+      .box-a{fill:#17243a;stroke:#7aa7ff}
+      .box-r{fill:#2e2411;stroke:#e0a24a}
+      .t{fill:#ece7dd}.s{fill:#a39b8d}.lbl{fill:#a39b8d}.leg{fill:#a39b8d}
+      .ar{stroke:#6f6657}.ah{fill:#6f6657}
+      .ar-d{stroke:#e0a24a}.ah-d{fill:#e0a24a}.lbl-d{fill:#e0a24a}
+    }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+    <marker id="ad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-d"/></marker>
+  </defs>
+
+  <rect x="20" y="16" width="12" height="12" rx="3" class="box-n"/><text x="38" y="26" class="leg">phone hardware</text>
+  <rect x="160" y="16" width="12" height="12" rx="3" class="box-r"/><text x="178" y="26" class="leg">runs with the screen off</text>
+  <rect x="340" y="16" width="12" height="12" rx="3" class="box-a"/><text x="358" y="26" class="leg">screens (read only)</text>
+
+  <rect x="16" y="70" width="140" height="74" rx="10" class="box-n"/>
+  <text x="86" y="102" text-anchor="middle" class="t">GPS + motion</text>
+  <text x="86" y="121" text-anchor="middle" class="s">~1 fix per second</text>
+
+  <rect x="190" y="70" width="150" height="74" rx="10" class="box-r"/>
+  <text x="265" y="102" text-anchor="middle" class="t">Background task</text>
+  <text x="265" y="121" text-anchor="middle" class="s">no UI needed</text>
+
+  <rect x="374" y="70" width="150" height="74" rx="10" class="box-r"/>
+  <text x="449" y="102" text-anchor="middle" class="t">GPS filter</text>
+  <text x="449" y="121" text-anchor="middle" class="s">keeps real movement</text>
+
+  <rect x="558" y="70" width="140" height="74" rx="10" class="box-r"/>
+  <text x="628" y="102" text-anchor="middle" class="t">SQLite</text>
+  <text x="628" y="121" text-anchor="middle" class="s">on the phone</text>
+
+  <rect x="732" y="70" width="132" height="74" rx="10" class="box-a"/>
+  <text x="798" y="102" text-anchor="middle" class="t">Screens</text>
+  <text x="798" y="121" text-anchor="middle" class="s">map · history · replay</text>
+
+  <path d="M156,107 H186" class="ar" marker-end="url(#a)"/>
+  <path d="M340,107 H370" class="ar" marker-end="url(#a)"/>
+  <path d="M524,107 H554" class="ar" marker-end="url(#a)"/>
+  <path d="M698,107 H728" class="ar" marker-end="url(#a)"/>
+  <text x="713" y="98" text-anchor="middle" class="lbl">live</text>
+
+  <path d="M628,144 V196 H798 V148" class="ar-d" marker-end="url(#ad)"/>
+  <text x="713" y="214" text-anchor="middle" class="lbl-d">app killed? next launch restores the run</text>
+</svg>

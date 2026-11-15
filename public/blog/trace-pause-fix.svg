@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 190" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" role="img" aria-label="The same simulator test before and after the pause fix: run, pause, move 5.5 kilometres, resume, run. Before, the activity saved as 6.00 kilometres at 26 seconds per kilometre. After, it saved as 0.38 kilometres at 5 minutes 15 seconds per kilometre; the true run was about 0.40 kilometres at 5 minutes 3 seconds per kilometre.">
+  <style>
+    .t{fill:#23201c;font-size:14px;font-weight:600}
+    .s{fill:#6b6459;font-size:12px}
+    .v{fill:#23201c;font-size:13px;font-weight:600}
+    .bad{fill:#e7b9a8}
+    .good{fill:#fc5200}
+    .truth{stroke:#3a6ea5;stroke-width:2;stroke-dasharray:4 3}
+    .tl{fill:#3a6ea5;font-size:11px;font-weight:600}
+    .axis{stroke:#d9d3c8;stroke-width:1}
+    @media (prefers-color-scheme:dark){
+      .t{fill:#ece7dd}.s{fill:#a39b8d}.v{fill:#ece7dd}
+      .bad{fill:#6b3b2a}.truth{stroke:#7aa7ff}.tl{fill:#7aa7ff}.axis{stroke:#3a342b}
+    }
+  </style>
+  <text x="20" y="28" class="s">Same test on the simulator: run, pause, move 5.5 km, resume, run. Saved distance:</text>
+
+  <text x="20" y="74" class="t">Before</text>
+  <rect x="100" y="58" width="600" height="24" rx="5" class="bad"/>
+  <text x="712" y="75" class="v">6.00 km · 0'26"/km</text>
+
+  <text x="20" y="124" class="t">After</text>
+  <rect x="100" y="108" width="38" height="24" rx="5" class="good"/>
+  <text x="150" y="125" class="v">0.38 km · 5'15"/km</text>
+
+  <line x1="140" y1="48" x2="140" y2="146" class="truth"/>
+  <text x="140" y="164" text-anchor="middle" class="tl">true run ≈ 0.40 km at 5'03"/km</text>
+  <line x1="100" y1="146" x2="700" y2="146" class="axis"/>
+</svg>
