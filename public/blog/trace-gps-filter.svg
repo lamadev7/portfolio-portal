@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 330" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" role="img" aria-label="Trace's GPS filter, as a funnel. Every location fix enters; a warm-up waits for a fix accurate to 15 metres; hard limits drop fixes that are too inaccurate, out of order or impossibly fast; a Kalman filter smooths the position; a point is stored only when the smoothed position is really moving at least 0.4 metres per second and has moved at least 5 metres. Standing still stores nothing.">
+  <style>
+    .f1{fill:#f0ece3;stroke:#c9c2b4}
+    .f2{fill:#fbf0dd;stroke:#b07516}
+    .f3{fill:#fde3cf;stroke:#d9621c}
+    .t{fill:#23201c;font-size:14px;font-weight:600}
+    .s{fill:#6b6459;font-size:11.5px}
+    .note{fill:#b07516;font-size:12px;font-weight:600}
+    .ar{stroke:#9b9486;stroke-width:1.6;fill:none}
+    .ah{fill:#9b9486}
+    @media (prefers-color-scheme:dark){
+      .f1{fill:#211d17;stroke:#423b30}
+      .f2{fill:#2e2411;stroke:#e0a24a}
+      .f3{fill:#3a1e0f;stroke:#f2894a}
+      .t{fill:#ece7dd}.s{fill:#a39b8d}.note{fill:#e0a24a}
+      .ar{stroke:#6f6657}.ah{fill:#6f6657}
+    }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+  </defs>
+
+  <rect x="40" y="14" width="600" height="46" rx="10" class="f1"/>
+  <text x="340" y="36" text-anchor="middle" class="t">Every location fix</text>
+  <text x="340" y="52" text-anchor="middle" class="s">raw GPS: jumps tens of metres, drifts while you stand still</text>
+
+  <rect x="80" y="74" width="520" height="46" rx="10" class="f2"/>
+  <text x="340" y="96" text-anchor="middle" class="t">Warm-up</text>
+  <text x="340" y="112" text-anchor="middle" class="s">wait for a fix accurate to 15 m (cold fixes land streets away)</text>
+
+  <rect x="120" y="134" width="440" height="46" rx="10" class="f2"/>
+  <text x="340" y="156" text-anchor="middle" class="t">Hard limits</text>
+  <text x="340" y="172" text-anchor="middle" class="s">drop fixes too blurry, out of order, or faster than a human</text>
+
+  <rect x="160" y="194" width="360" height="46" rx="10" class="f2"/>
+  <text x="340" y="216" text-anchor="middle" class="t">Smoothing</text>
+  <text x="340" y="232" text-anchor="middle" class="s">Kalman filter: sharp fixes move it, noisy ones nudge it</text>
+
+  <rect x="200" y="254" width="280" height="46" rx="10" class="f3"/>
+  <text x="340" y="276" text-anchor="middle" class="t">Store only real movement</text>
+  <text x="340" y="292" text-anchor="middle" class="s">moving ≥ 0.4 m/s and ≥ 5 m since last point</text>
+
+  <path d="M640,277 H668" class="ar" marker-end="url(#a)"/>
+  <path d="M480,277 H640" class="ar"/>
+  <text x="676" y="273" class="t">Track point</text>
+  <text x="676" y="290" class="s">≈ 1 every 5–10 m</text>
+  <text x="676" y="150" class="note">Standing at a red light:</text>
+  <text x="676" y="168" class="note">nothing passes the last step,</text>
+  <text x="676" y="186" class="note">so 0 m is added.</text>
+</svg>
